@@ -4,6 +4,7 @@ import {
   ImageIcon,
   MailIcon,
   MessageSquareIcon,
+  SendIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -18,19 +19,25 @@ import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
 import { getGatewayModel } from "@db/services/settings";
+import { isTelegramLinked } from "@db/services/telegram-links";
 import { linkConfigured } from "@db/services/auth/link";
 import { env } from "@shared/environment";
 import { googleWorkspaceTokenParams } from "@shared/google-workspace/connection";
 import { requireRequestScope } from "@web/auth/request-scope";
 import { GoogleWorkspaceAction } from "./_components/google-workspace-action";
 import { ModelSelector } from "./_components/model-selector";
+import { TelegramConnectAction } from "./_components/telegram-connect-action";
 
 export default async function Page({ searchParams }: PageProps<"/">) {
   const google = (await searchParams).google;
   const scope = await requireRequestScope();
-  const [googleWorkspace, gatewayModel] = await Promise.all([
+  const telegramConfigured = Boolean(
+    env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_BOT_USERNAME
+  );
+  const [googleWorkspace, gatewayModel, telegramLinked] = await Promise.all([
     readGoogleWorkspaceConnection(scope.userId),
     getGatewayModel(scope),
+    telegramConfigured ? isTelegramLinked(scope) : false,
   ]);
   const browserReady = true;
   const imageStorageReady = Boolean(
@@ -55,6 +62,8 @@ export default async function Page({ searchParams }: PageProps<"/">) {
         browserReady={browserReady}
         linqConfigured={env.LINQ_CONNECTOR !== undefined}
         linqPhoneNumber={env.LINQ_PHONE_NUMBER}
+        telegramConfigured={telegramConfigured}
+        telegramLinked={telegramLinked}
       />
       <ConnectionsSection
         connection={googleWorkspace}
@@ -182,10 +191,14 @@ export function ChannelsSection({
   browserReady,
   linqConfigured,
   linqPhoneNumber,
+  telegramConfigured = false,
+  telegramLinked = false,
 }: {
   readonly browserReady: boolean;
   readonly linqConfigured: boolean;
   readonly linqPhoneNumber?: string;
+  readonly telegramConfigured?: boolean;
+  readonly telegramLinked?: boolean;
 }) {
   return (
     <WorkspaceSection headingId="channels-heading" title="Channels">
@@ -222,12 +235,22 @@ export function ChannelsSection({
             iMessage
           </Button>
         )}
+        {telegramConfigured ? (
+          <TelegramConnectAction linked={telegramLinked} />
+        ) : (
+          <Button disabled variant="surface">
+            <SendIcon />
+            Telegram
+          </Button>
+        )}
       </div>
       <p className="type-caption text-muted-foreground">
         {channelAvailabilityMessage({
           browserReady,
           linqConfigured,
           linqPhoneNumber,
+          telegramConfigured,
+          telegramLinked,
         })}
       </p>
     </WorkspaceSection>
@@ -238,10 +261,14 @@ function channelAvailabilityMessage({
   browserReady,
   linqConfigured,
   linqPhoneNumber,
+  telegramConfigured,
+  telegramLinked,
 }: {
   readonly browserReady: boolean;
   readonly linqConfigured: boolean;
   readonly linqPhoneNumber?: string;
+  readonly telegramConfigured: boolean;
+  readonly telegramLinked: boolean;
 }) {
   return [
     browserReady
@@ -252,6 +279,11 @@ function channelAvailabilityMessage({
       : linqConfigured
         ? "Linq is connected. Use its assigned line to start an iMessage."
         : "Set up Linq to enable iMessage.",
+    telegramLinked
+      ? "Telegram is connected."
+      : telegramConfigured
+        ? "Connect Telegram to text your agent there."
+        : "Set TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_USERNAME to enable Telegram.",
   ].join(" ");
 }
 

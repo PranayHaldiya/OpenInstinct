@@ -90,6 +90,14 @@ export const env = createEnv({
     LINK_CLIENT_ID: requiredValue.optional(),
     LINK_CLIENT_SECRET: requiredValue.optional(),
     STRIPE_PUBLISHABLE_KEY: requiredValue.optional(),
+    TELEGRAM_BOT_TOKEN: requiredValue.optional(),
+    TELEGRAM_BOT_USERNAME: requiredValue
+      .refine(
+        (value) => /^[A-Za-z0-9_]{5,32}$/.test(value),
+        "TELEGRAM_BOT_USERNAME must be the bot username without @"
+      )
+      .optional(),
+    TELEGRAM_WEBHOOK_SECRET_TOKEN: requiredValue.optional(),
     LINQ_PHONE_NUMBER: requiredValue
       .refine(
         (value) => isE164PhoneNumber(value),

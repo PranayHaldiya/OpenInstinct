@@ -5,6 +5,7 @@ import { listBrowserTraces } from "@db/services/browser-traces";
 import { saveChat } from "@db/services/chats";
 import { replaceUserProfile } from "@db/services/user-profile";
 import { selectGatewayModel } from "@db/services/settings";
+import { createTelegramLinkCode } from "@db/services/telegram-links";
 import { deleteVaultItem, saveVaultItem } from "@db/services/vault";
 import type { AccessScope } from "@shared/identity/access-scope";
 import { saveChatSchema } from "@shared/chat/schema";
@@ -53,6 +54,17 @@ export const appRouter = createTRPCRouter({
       .mutation(({ ctx, input }) =>
         selectGatewayModel(ctx.scope, input.modelId)
       ),
+  },
+  telegram: {
+    createLink: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!env.TELEGRAM_BOT_USERNAME || !env.TELEGRAM_BOT_TOKEN) {
+        throw new Error("Telegram is not configured on this deployment.");
+      }
+      const code = await createTelegramLinkCode(ctx.scope);
+      return {
+        url: `https://t.me/${env.TELEGRAM_BOT_USERNAME}?start=${code}`,
+      };
+    }),
   },
   userProfile: {
     update: protectedProcedure

@@ -9,6 +9,8 @@ export async function proxy(request: NextRequest) {
     pathname === "/contacts/openinstinct.vcf" ||
     pathname.startsWith("/api/auth/") ||
     pathname === "/eve/v1/health" ||
+    // The Telegram channel verifies Telegram's webhook secret header itself.
+    pathname === "/eve/v1/telegram" ||
     pathname.startsWith("/internal/scheduled-run/") ||
     pathname === "/eve/v1/dev/schedules/dynamic"
   ) {
