@@ -156,9 +156,17 @@ function requireModelCredentials() {
   ) {
     return;
   }
+  // A direct Anthropic key runs the agent; cases scored by the judge model
+  // still need AI Gateway, so run judge-free tags this way.
+  if (inheritedEnvironment.ANTHROPIC_API_KEY?.trim()) {
+    console.warn(
+      "Running agent evals on ANTHROPIC_API_KEY. Judge-scored checks need AI_GATEWAY_API_KEY and will fail without it."
+    );
+    return;
+  }
 
   throw new Error(
-    "Agent evals require AI_GATEWAY_API_KEY or VERCEL_OIDC_TOKEN. Add one to .env.local or the current environment."
+    "Agent evals require AI_GATEWAY_API_KEY, VERCEL_OIDC_TOKEN or ANTHROPIC_API_KEY. Add one to .env.local or the current environment."
   );
 }
 
