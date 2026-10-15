@@ -25,6 +25,7 @@ describe("root and worker capability boundaries", () => {
       "calendar.ts",
       "contacts.ts",
       "gmail.ts",
+      "jobs.ts",
       "link__create_spend_request.ts",
       "link__retrieve_spend_request.ts",
       "messaging.ts",

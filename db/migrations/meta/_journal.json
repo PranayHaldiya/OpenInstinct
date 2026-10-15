@@ -120,6 +120,13 @@
       "when": 1792069696931,
       "tag": "0016_telegram_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792073201571,
+      "tag": "0017_job_search",
+      "breakpoints": true
     }
   ]
 }
