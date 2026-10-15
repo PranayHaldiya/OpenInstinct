@@ -6,6 +6,7 @@ import {
   releaseScheduledReport,
 } from "@db/services/scheduled-agent-jobs";
 import linq from "../../channels/linq";
+import telegram from "../../channels/telegram";
 
 type ClaimedScheduledReport = NonNullable<
   Awaited<ReturnType<typeof claimScheduledReport>>
@@ -40,13 +41,17 @@ export async function dispatchScheduledReport(
   };
   try {
     const prompt = scheduledReportPrompt(claimed);
-    if (claimed.job.conversationChannel === "linq") {
-      const session = await delivery
-        .to(linq, {
-          adapterName: "linq",
-          threadId: claimed.job.conversationId,
-        })
-        .send(prompt, options);
+    if (claimed.job.conversationChannel !== "eve") {
+      const session = await (
+        claimed.job.conversationChannel === "linq"
+          ? delivery.to(linq, {
+              adapterName: "linq",
+              threadId: claimed.job.conversationId,
+            })
+          : delivery.to(telegram, {
+              chatId: telegramChatId(claimed.job.conversationId),
+            })
+      ).send(prompt, options);
       console.info("[scheduled-run] report session accepted", {
         channel: claimed.job.conversationChannel,
         reportSequence: claimed.run.reportSequence,
@@ -83,6 +88,12 @@ export async function dispatchScheduledReport(
       runId: claimed.run.id,
     });
   }
+}
+
+function telegramChatId(conversationId: string) {
+  const chatId = /^telegram:(-?\d+)$/.exec(conversationId)?.[1];
+  if (!chatId) throw new Error("A Telegram schedule requires a chat id.");
+  return chatId;
 }
 
 function scheduledReportPrompt(claimed: ClaimedScheduledReport) {

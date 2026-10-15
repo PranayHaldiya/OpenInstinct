@@ -5,6 +5,7 @@ import type {
   listScheduledAgentJobs,
 } from "@db/services/scheduled-agent-jobs";
 import { scopeFromPrincipal } from "@agent/lib/principal-scope";
+import { scheduledAgentJobs } from "@db/schema";
 
 export function scheduleOwner(context: ToolContext) {
   const auth = context.session.auth.current;
@@ -12,12 +13,15 @@ export function scheduleOwner(context: ToolContext) {
     throw new Error("An authenticated user is required to manage schedules.");
   }
   const conversationChannel = z
-    .enum(["eve", "linq"])
+    .enum(scheduledAgentJobs.conversationChannel.enumValues)
     .parse(auth.attributes.conversationChannel);
   const conversationId =
     conversationChannel === "eve"
       ? context.session.id
-      : z.string().startsWith("linq:").parse(auth.attributes.conversationId);
+      : z
+          .string()
+          .startsWith(`${conversationChannel}:`)
+          .parse(auth.attributes.conversationId);
   return {
     conversation: { conversationChannel, conversationId },
     scope: scopeFromPrincipal(auth),
