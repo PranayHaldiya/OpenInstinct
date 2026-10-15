@@ -48,7 +48,7 @@ export async function loadCandidatePostings(input: {
     url.searchParams.set("since", input.since.toISOString());
     const response = await fetch(url, {
       headers: {
-        authorization: `Bearer ${env.OI_HUB_TOKEN}`,
+        "x-oi-hub-token": env.OI_HUB_TOKEN,
         "x-oi-user": env.OWNER_TELEGRAM_USER_ID,
       },
       signal: AbortSignal.timeout(30_000),

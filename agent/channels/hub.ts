@@ -34,9 +34,7 @@ export default defineChannel({
     // Operator trigger for a job ingest outside the four-hourly schedule.
     POST("/eve/v1/hub/ingest", async (request, { waitUntil }) => {
       if (env.OI_ROLE !== "hub" || !env.OI_HUB_SECRET) return notFound();
-      if (
-        request.headers.get("authorization") !== `Bearer ${env.OI_HUB_SECRET}`
-      ) {
+      if (request.headers.get("x-oi-hub-secret") !== env.OI_HUB_SECRET) {
         return new Response(null, { status: 401 });
       }
       waitUntil(ingestAndLog());
@@ -45,9 +43,9 @@ export default defineChannel({
     GET("/eve/v1/hub/jobs", async (request) => {
       if (env.OI_ROLE !== "hub" || !env.OI_HUB_SECRET) return notFound();
       const telegramUserId = request.headers.get("x-oi-user") ?? "";
-      const token = /^Bearer (.+)$/.exec(
-        request.headers.get("authorization") ?? ""
-      )?.[1];
+      // Maritime's edge rewrites Authorization, so hub credentials travel
+      // in their own headers.
+      const token = request.headers.get("x-oi-hub-token");
       if (
         !token ||
         !/^\d{1,20}$/.test(telegramUserId) ||
