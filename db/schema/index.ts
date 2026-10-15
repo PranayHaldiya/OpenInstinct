@@ -3,6 +3,7 @@ export * from "./browser";
 export * from "./chats";
 export * from "./hub";
 export * from "./jobs";
+export * from "./memory";
 export * from "./schedules";
 export * from "./sessions";
 export * from "./telegram";

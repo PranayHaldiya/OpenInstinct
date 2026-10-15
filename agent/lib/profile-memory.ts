@@ -26,13 +26,15 @@ export function resolveProfileMemoryBackend(
     };
   }
 
-  return environment.VERCEL_ENV === undefined &&
-    environment.BLOB_READ_WRITE_TOKEN
+  if (environment.VERCEL_ENV !== undefined)
+    return { kind: "automatic" as const };
+  // Self-hosted production: Blob when a token is given, else the app's Postgres.
+  return environment.BLOB_READ_WRITE_TOKEN
     ? {
         kind: "vercel-blob" as const,
         options: { token: environment.BLOB_READ_WRITE_TOKEN },
       }
-    : { kind: "automatic" as const };
+    : { kind: "postgres" as const };
 }
 
 export function resolveProfileMemoryScope(context: MemoryScopeContext) {

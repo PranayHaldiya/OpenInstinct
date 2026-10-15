@@ -6,6 +6,7 @@ import {
   resolveProfileMemoryBackend,
   resolveProfileMemoryScope,
 } from "../lib/profile-memory";
+import { postgresMemoryBackend } from "@db/services/memory-documents";
 import { env } from "@shared/environment";
 
 const backend = resolveProfileMemoryBackend(env);
@@ -14,7 +15,9 @@ const provider = preserveProfileMemoryCancellation(
     ? fileMemory({
         backend: vercelBlob(backend.options),
       })
-    : fileMemory()
+    : backend.kind === "postgres"
+      ? fileMemory({ backend: postgresMemoryBackend })
+      : fileMemory()
 );
 
 export default defineMemory({

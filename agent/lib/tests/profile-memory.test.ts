@@ -55,6 +55,14 @@ describe("profile memory", () => {
         VERCEL_ENV: undefined,
       })
     ).toEqual({ kind: "automatic" });
+    expect(
+      resolveProfileMemoryBackend({
+        BLOB_READ_WRITE_TOKEN: undefined,
+        BLOB_STORE_ID: undefined,
+        NODE_ENV: "production",
+        VERCEL_ENV: undefined,
+      })
+    ).toEqual({ kind: "postgres" });
   });
 
   it("shares the canonical workspace across verified authenticators", () => {
