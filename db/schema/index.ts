@@ -1,6 +1,7 @@
 export * from "./auth";
 export * from "./browser";
 export * from "./chats";
+export * from "./hub";
 export * from "./jobs";
 export * from "./schedules";
 export * from "./sessions";

@@ -1,6 +1,7 @@
 import { defineDynamic, defineTool, type ToolContext } from "eve/tools";
 import { always } from "eve/tools/approval";
 import { z } from "zod";
+import { loadCandidatePostings } from "@agent/lib/jobs/candidates";
 import { matchJobs } from "@agent/lib/jobs/match";
 import { resolveModeValue } from "@agent/lib/mode";
 import { scopeFromPrincipal } from "@agent/lib/principal-scope";
@@ -13,7 +14,6 @@ import {
 } from "@db/services/jobs/applications";
 import { listJobDocuments } from "@db/services/jobs/documents";
 import { createJobSubmissionGrant } from "@db/services/jobs/grants";
-import { listCandidateJobPostings } from "@db/services/jobs/postings";
 import {
   getJobProfileFacts,
   jobProfileFactsLimit,
@@ -56,7 +56,7 @@ export const findJobs = defineTool({
     const now = new Date();
     const preferences = await getJobPreferences(scope);
     const [postings, loggedCompanies, recommended] = await Promise.all([
-      listCandidateJobPostings({
+      loadCandidatePostings({
         remoteScopes: preferences.remoteScopes,
         since: new Date(now.getTime() - preferences.maxAgeDays * dayMs),
       }),

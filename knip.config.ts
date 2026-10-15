@@ -16,10 +16,14 @@ export default {
     "db/schema/index.ts",
     "evals/**/*.eval.ts",
     "evals/evals.config.ts",
+    // Maritime VM entrypoint and its owner setup, run by the container.
+    "scripts/vm/*.ts",
     "taze.config.ts",
     "tests/runtime/fixture/agent/**/*.ts",
     "tests/runtime/fixture/evals/**/*.ts",
   ],
+  // Installed in the Maritime VM image by apt, not npm.
+  ignoreBinaries: ["psql", "runuser"],
   ignoreDependencies: [
     // Type owners referenced by the Eve declaration patch, which Knip does not parse.
     "@linqapp/chat-sdk-adapter",

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, ne } from "drizzle-orm";
 import type { AccessScope } from "@shared/identity/access-scope";
-import { db, telegramLinks } from "@db";
+import { db, telegramLinks, user } from "@db";
 
 const betterAuthPrincipalPrefix = "better-auth:";
 const linkCodeLifetimeMs = 15 * 60 * 1000;
@@ -100,4 +100,39 @@ export async function isTelegramLinked(scope: AccessScope) {
     .where(eq(telegramLinks.userId, betterAuthUserId(scope)))
     .limit(1);
   return Boolean(row?.telegramUserId);
+}
+
+/**
+ * Creates the single owner of a per-user deployment and links their Telegram
+ * account, so the first message needs no sign-in. Returns the owner's user id.
+ */
+export async function ensureTelegramOwner(input: {
+  readonly name: string;
+  readonly telegramUserId: string;
+}) {
+  const existing = await findUserIdByTelegramUserId(input.telegramUserId);
+  if (existing) return existing;
+  const userId = `telegram-${input.telegramUserId}`;
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(user)
+      .values({
+        email: `${userId}@users.openinstinct.invalid`,
+        id: userId,
+        name: input.name,
+      })
+      .onConflictDoNothing();
+    await tx
+      .insert(telegramLinks)
+      .values({
+        linkedAt: new Date(),
+        telegramUserId: input.telegramUserId,
+        userId,
+      })
+      .onConflictDoUpdate({
+        target: telegramLinks.userId,
+        set: { linkedAt: new Date(), telegramUserId: input.telegramUserId },
+      });
+  });
+  return userId;
 }

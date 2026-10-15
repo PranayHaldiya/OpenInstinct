@@ -98,6 +98,21 @@ export const env = createEnv({
       )
       .optional(),
     TELEGRAM_WEBHOOK_SECRET_TOKEN: requiredValue.optional(),
+
+    // Maritime: one hub routes Telegram to one VM per user.
+    OI_ROLE: z.enum(["hub", "user"]).optional(),
+    OI_PUBLIC_URL: requiredValue
+      .refine((value) => URL.canParse(value), "OI_PUBLIC_URL must be a URL")
+      .optional(),
+    OI_HUB_URL: requiredValue
+      .refine((value) => URL.canParse(value), "OI_HUB_URL must be a URL")
+      .optional(),
+    // Hub: signs per-user tokens. User VM: its own token for the hub's API.
+    OI_HUB_SECRET: requiredValue.optional(),
+    OI_HUB_TOKEN: requiredValue.optional(),
+    OWNER_TELEGRAM_USER_ID: requiredValue.optional(),
+    MARITIME_API_KEY: requiredValue.optional(),
+    OI_USER_IMAGE: requiredValue.optional(),
     LINQ_PHONE_NUMBER: requiredValue
       .refine(
         (value) => isE164PhoneNumber(value),

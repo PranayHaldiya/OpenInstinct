@@ -45,7 +45,7 @@ describe("agent eval supervisor", supervisorTestOptions, () => {
     expect(result.code).toBe(1);
     expect(result.commands).toBe("");
     expect(result.stderr).toContain(
-      "Agent evals require AI_GATEWAY_API_KEY or VERCEL_OIDC_TOKEN."
+      "Agent evals require AI_GATEWAY_API_KEY, VERCEL_OIDC_TOKEN or ANTHROPIC_API_KEY."
     );
   });
 

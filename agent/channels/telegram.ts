@@ -5,9 +5,11 @@ import {
   type TelegramMessage,
 } from "eve/channels/telegram";
 import {
+  ensureTelegramOwner,
   findUserIdByTelegramUserId,
   redeemTelegramLinkCode,
 } from "@db/services/telegram-links";
+import { ensureScope } from "@db/services/scope";
 import type { z } from "zod";
 import {
   sendMessageToolResultSchema,
@@ -72,7 +74,9 @@ export default telegramChannel({
     }
 
     if (!shouldDispatch(message)) return null;
-    const userId = await findUserIdByTelegramUserId(sender.id);
+    const userId =
+      (await findUserIdByTelegramUserId(sender.id)) ??
+      (await claimDeploymentOwner(sender));
     if (!userId) {
       // Only the linked account authenticates a principal; never mint one for
       // an unknown Telegram user, and stay quiet in groups.
@@ -98,6 +102,24 @@ export default telegramChannel({
     };
   },
 });
+
+/**
+ * A per-user deployment knows its one owner from the environment; their first
+ * message links them without a web sign-in. Anyone else stays unlinked.
+ */
+async function claimDeploymentOwner(
+  sender: NonNullable<TelegramMessage["from"]>
+) {
+  if (!env.OWNER_TELEGRAM_USER_ID || sender.id !== env.OWNER_TELEGRAM_USER_ID) {
+    return undefined;
+  }
+  const userId = await ensureTelegramOwner({
+    name: sender.firstName ?? sender.username ?? "Telegram user",
+    telegramUserId: sender.id,
+  });
+  await ensureScope(accessScopeForUser(`better-auth:${userId}`));
+  return userId;
+}
 
 function shouldDispatch(message: TelegramMessage) {
   const text = message.text || message.caption;

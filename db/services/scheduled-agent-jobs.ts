@@ -810,3 +810,21 @@ export async function finalizeScheduledReport(
     .returning({ id: scheduledAgentRuns.id });
   return run !== undefined;
 }
+
+/** Next run times of active jobs, for hosts that must wake the app first. */
+export async function listUpcomingScheduledRuns(limit = 50) {
+  return db
+    .select({
+      id: scheduledAgentJobs.id,
+      nextRunAt: scheduledAgentJobs.nextRunAt,
+    })
+    .from(scheduledAgentJobs)
+    .where(
+      and(
+        eq(scheduledAgentJobs.status, "active"),
+        isNotNull(scheduledAgentJobs.nextRunAt)
+      )
+    )
+    .orderBy(asc(scheduledAgentJobs.nextRunAt))
+    .limit(limit);
+}

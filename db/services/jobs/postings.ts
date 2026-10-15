@@ -222,3 +222,38 @@ export async function markJobBoardFetched(
       )
     );
 }
+
+/**
+ * Stores postings read from another deployment's index under their original
+ * ids, so recommendations and the application log can reference them.
+ */
+export async function cacheJobPostings(
+  postings: readonly (typeof jobPostings.$inferInsert)[]
+) {
+  /* oxlint-disable eslint/no-await-in-loop -- Chunks are written one at a time to bound statement size. */
+  for (let start = 0; start < postings.length; start += upsertChunkSize) {
+    await db
+      .insert(jobPostings)
+      .values(postings.slice(start, start + upsertChunkSize))
+      .onConflictDoUpdate({
+        target: jobPostings.id,
+        set: {
+          applyUrl: sql`excluded.apply_url`,
+          closedAt: sql`excluded.closed_at`,
+          company: sql`excluded.company`,
+          companyKey: sql`excluded.company_key`,
+          description: sql`excluded.description`,
+          lastSeenAt: sql`excluded.last_seen_at`,
+          location: sql`excluded.location`,
+          pay: sql`excluded.pay`,
+          postedAt: sql`excluded.posted_at`,
+          screen: sql`excluded.screen`,
+          screenedAt: sql`excluded.screened_at`,
+          title: sql`excluded.title`,
+          url: sql`excluded.url`,
+          workplaceType: sql`excluded.workplace_type`,
+        },
+      });
+  }
+  /* oxlint-enable eslint/no-await-in-loop */
+}

@@ -12,6 +12,10 @@ export async function proxy(request: NextRequest) {
     // The Telegram channel verifies Telegram's webhook secret header itself.
     pathname === "/eve/v1/telegram" ||
     pathname.startsWith("/internal/scheduled-run/") ||
+    // Hub routes verify Telegram's secret or a per-user hub token themselves.
+    pathname.startsWith("/internal/hub/") ||
+    // Maritime polls the schedule list to know when to wake this VM.
+    pathname === "/schedules" ||
     pathname === "/eve/v1/dev/schedules/dynamic"
   ) {
     return NextResponse.next();
