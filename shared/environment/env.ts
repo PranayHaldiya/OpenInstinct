@@ -81,6 +81,8 @@ export const env = createEnv({
     ),
 
     // Optional
+    AI_GATEWAY_API_KEY: requiredValue.optional(),
+    ANTHROPIC_API_KEY: requiredValue.optional(),
     BLOB_READ_WRITE_TOKEN: requiredValue.optional(),
     BLOB_STORE_ID: requiredValue.optional(),
     GOOGLE_CONNECTOR_UID: requiredValue.default("google/open-instinct"),

@@ -3,6 +3,7 @@ import { scheduledRunIdentity } from "@agent/lib/schedules/identity";
 import { isScheduledAgentRunLeaseActive } from "@db/services/scheduled-agent-run-leases";
 import { getGatewayModel } from "@db/services/settings";
 import { scopeFromPrincipal } from "@agent/lib/principal-scope";
+import { resolveModel } from "@agent/lib/direct-model";
 
 export default defineAgent({
   defaultTools: false,
@@ -21,7 +22,7 @@ export default defineAgent({
         }
         const caller = ctx.session.auth.current ?? ctx.session.auth.initiator;
         if (!caller) throw new Error("An authenticated user is required.");
-        return getGatewayModel(scopeFromPrincipal(caller));
+        return resolveModel(await getGatewayModel(scopeFromPrincipal(caller)));
       },
     },
   }),

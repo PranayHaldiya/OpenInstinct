@@ -63,4 +63,33 @@ describe("structured browser workflow", () => {
       )
     ).rejects.toThrow(/images/u);
   });
+
+  it("refuses browser work while reporting a scheduled result", async () => {
+    const agent = vi.fn<WorkflowToolContext["agent"]>();
+    const context = toolContextFor();
+    await expect(
+      runBrowser.execute(
+        { message: "Inspect the heading" },
+        {
+          ...context,
+          session: {
+            ...context.session,
+            auth: {
+              current: {
+                attributes: {},
+                authenticator: "scheduled-result",
+                principalId: "user-1",
+                principalType: "user",
+              },
+              initiator: null,
+            },
+          },
+          agent,
+          agents: {},
+          ask: vi.fn<WorkflowToolContext["ask"]>(),
+        }
+      )
+    ).rejects.toThrow("scheduled result");
+    expect(agent).not.toHaveBeenCalled();
+  });
 });

@@ -1,26 +1,23 @@
 import { defineAgent, defineDynamic } from "eve";
-import { resolveModeValue } from "@agent/lib/mode";
+import { resolveModel } from "@agent/lib/direct-model";
 
-export default defineDynamic({
+// A static definition, so a direct provider model can be resolved per step;
+// dynamic subagent definitions must serialize. Mode gating lives on the
+// run_browser tool, the only caller.
+export default defineAgent({
   build: {
     externalDependencies: ["@onkernel/browser-loop"],
   },
-  events: {
-    "turn.started": (_event, context) => {
-      const worker = defineAgent({
-        tool: false,
-        description:
-          "Execute one bounded browser assignment for the root coordinator, including secure vault autofill, transaction preparation, optional durable browser images, human-takeover handoff, cleanup, and a concise verified result.",
-        model: "meta/muse-spark-1.3",
-        reasoning: "low",
-        compaction: {
-          thresholdPercent: 0.7,
-        },
-      });
-      return resolveModeValue(context, {
-        interactive: worker,
-        "scheduled-worker": worker,
-      });
+  tool: false,
+  description:
+    "Execute one bounded browser assignment for the root coordinator, including secure vault autofill, transaction preparation, optional durable browser images, human-takeover handoff, cleanup, and a concise verified result.",
+  model: defineDynamic({
+    events: {
+      "step.started": () => resolveModel("meta/muse-spark-1.3"),
     },
+  }),
+  reasoning: "low",
+  compaction: {
+    thresholdPercent: 0.7,
   },
 });
