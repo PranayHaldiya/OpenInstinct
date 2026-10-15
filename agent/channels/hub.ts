@@ -5,6 +5,7 @@ import {
   telegramUpdateSchema,
 } from "@agent/lib/hub/router";
 import { verifyHubToken } from "@agent/lib/hub/token";
+import { ingestJobs } from "@agent/lib/jobs/ingest";
 import { listCandidateJobPostings } from "@db/services/jobs/postings";
 import { remoteScopes } from "@shared/jobs/schema";
 import { env } from "@shared/environment";
@@ -29,6 +30,17 @@ export default defineChannel({
       // Telegram retries slow webhooks; acknowledge at once and route after.
       waitUntil(routeAndLog(update.data));
       return new Response(null, { status: 200 });
+    }),
+    // Operator trigger for a job ingest outside the four-hourly schedule.
+    POST("/eve/v1/hub/ingest", async (request, { waitUntil }) => {
+      if (env.OI_ROLE !== "hub" || !env.OI_HUB_SECRET) return notFound();
+      if (
+        request.headers.get("authorization") !== `Bearer ${env.OI_HUB_SECRET}`
+      ) {
+        return new Response(null, { status: 401 });
+      }
+      waitUntil(ingestAndLog());
+      return new Response(null, { status: 202 });
     }),
     GET("/eve/v1/hub/jobs", async (request) => {
       if (env.OI_ROLE !== "hub" || !env.OI_HUB_SECRET) return notFound();
@@ -67,5 +79,13 @@ async function routeAndLog(update: Parameters<typeof routeTelegramUpdate>[0]) {
     await routeTelegramUpdate(update);
   } catch (error) {
     console.error("[hub] routing failed", error);
+  }
+}
+
+async function ingestAndLog() {
+  try {
+    console.info("[jobs] ingest finished", await ingestJobs());
+  } catch (error) {
+    console.error("[jobs] ingest failed", error);
   }
 }

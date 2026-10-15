@@ -86,6 +86,9 @@ async function main() {
         NITRO_HOST: "127.0.0.1",
         NITRO_PORT: eveProductionPort,
         PORT: eveProductionPort,
+        // Workflow step callbacks must reach eve directly; through the public
+        // URL they hit Next, which neither forwards nor authorizes them.
+        WORKFLOW_LOCAL_BASE_URL: `http://127.0.0.1:${eveProductionPort}`,
       },
       stdio: "inherit",
     })
