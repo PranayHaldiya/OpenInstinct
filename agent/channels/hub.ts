@@ -15,7 +15,7 @@ const notFound = () => new Response(null, { status: 404 });
 // per-user VMs read. On any other deployment these routes answer 404.
 export default defineChannel({
   routes: [
-    POST("/internal/hub/telegram", async (request, { waitUntil }) => {
+    POST("/eve/v1/hub/telegram", async (request, { waitUntil }) => {
       if (env.OI_ROLE !== "hub") return notFound();
       const secret = request.headers.get("x-telegram-bot-api-secret-token");
       if (
@@ -30,7 +30,7 @@ export default defineChannel({
       waitUntil(routeAndLog(update.data));
       return new Response(null, { status: 200 });
     }),
-    GET("/internal/hub/jobs", async (request) => {
+    GET("/eve/v1/hub/jobs", async (request) => {
       if (env.OI_ROLE !== "hub" || !env.OI_HUB_SECRET) return notFound();
       const telegramUserId = request.headers.get("x-oi-user") ?? "";
       const token = /^Bearer (.+)$/.exec(

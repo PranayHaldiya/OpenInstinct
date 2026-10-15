@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
     pathname === "/eve/v1/telegram" ||
     pathname.startsWith("/internal/scheduled-run/") ||
     // Hub routes verify Telegram's secret or a per-user hub token themselves.
-    pathname.startsWith("/internal/hub/") ||
+    pathname.startsWith("/eve/v1/hub/") ||
     // Maritime polls the schedule list to know when to wake this VM.
     pathname === "/schedules" ||
     pathname === "/eve/v1/dev/schedules/dynamic"

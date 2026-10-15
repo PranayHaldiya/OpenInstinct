@@ -41,7 +41,7 @@ export async function loadCandidatePostings(input: {
 }) {
   if (env.OI_HUB_URL && env.OI_HUB_TOKEN && env.OWNER_TELEGRAM_USER_ID) {
     const url = new URL(
-      "internal/hub/jobs",
+      "eve/v1/hub/jobs",
       `${env.OI_HUB_URL.replace(/\/$/, "")}/`
     );
     url.searchParams.set("scopes", input.remoteScopes.join(","));
