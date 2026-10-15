@@ -1,4 +1,5 @@
 import { defineDynamic, defineTool, type ToolContext } from "eve/tools";
+import { always } from "eve/tools/approval";
 import { z } from "zod";
 import { matchJobs } from "@agent/lib/jobs/match";
 import { resolveModeValue } from "@agent/lib/mode";
@@ -10,7 +11,14 @@ import {
   recordJobApplication,
   recordJobRecommendations,
 } from "@db/services/jobs/applications";
+import { listJobDocuments } from "@db/services/jobs/documents";
+import { createJobSubmissionGrant } from "@db/services/jobs/grants";
 import { listCandidateJobPostings } from "@db/services/jobs/postings";
+import {
+  getJobProfileFacts,
+  jobProfileFactsLimit,
+  saveJobProfileFacts,
+} from "@db/services/jobs/profile";
 import {
   getJobPreferences,
   updateJobPreferences,
@@ -134,13 +142,17 @@ export const logJob = defineTool({
 
 export const listJobLog = defineTool({
   description:
-    "List the user's job application log, newest first, optionally filtered by status. Use it to answer where they applied, what needs a follow-up, or before logging an update to an existing entry.",
+    "List the user's job application log, newest first, optionally filtered by status. Set followUpDue to list only entries whose follow-up date has arrived. Use it to answer where they applied, what needs a follow-up, or before logging an update to an existing entry.",
   inputSchema: z.object({
+    followUpDue: z.boolean().default(false),
     limit: z.number().int().min(1).max(100).default(30),
     statuses: z.array(z.enum(jobApplicationStatuses)).optional(),
   }),
   async execute(input, context) {
-    const entries = await listJobApplications(callerScope(context), input);
+    const entries = await listJobApplications(callerScope(context), {
+      ...input,
+      followUpDueBy: input.followUpDue ? new Date() : undefined,
+    });
     return entries.map((entry) => ({
       appliedOn: isoDate(entry.appliedAt),
       channel: entry.channel,
@@ -214,15 +226,86 @@ function summarizePreferences(
   };
 }
 
+export const jobProfileTool = defineTool({
+  description:
+    "Read or change the facts the user has confirmed about themselves for applications and outreach: experience, projects, metrics, links, availability, and answers to common form questions. Drafts of notes, emails and form answers may use only these facts; never add a claim, number or skill that isn't here. Call with no fields to read. Pass append to add facts the user just stated, or facts to replace the whole text when they ask to rewrite it.",
+  inputSchema: z.object({
+    append: z.string().trim().min(1).max(4_000).optional(),
+    facts: z.string().trim().min(1).max(jobProfileFactsLimit).optional(),
+  }),
+  async execute(input, context) {
+    const scope = callerScope(context);
+    const current = await getJobProfileFacts(scope);
+    const next =
+      input.facts ??
+      (input.append
+        ? [current?.facts, input.append].filter(Boolean).join("\n")
+        : undefined);
+    if (next !== undefined) await saveJobProfileFacts(scope, next);
+    const facts = next ?? current?.facts ?? "";
+    return {
+      facts,
+      saved: next !== undefined,
+      updatedOn:
+        next === undefined
+          ? isoDate(current?.updatedAt ?? null)
+          : isoDate(new Date()),
+    };
+  },
+});
+
+export const listJobDocumentsTool = defineTool({
+  description:
+    "List the user's saved application documents, such as resume variants, by label. Name a label in a browser assignment so the worker's stage_document can attach it to a form; the worker never sees the file's content.",
+  inputSchema: z.object({}),
+  async execute(_input, context) {
+    return (await listJobDocuments(callerScope(context))).map((document) => ({
+      filename: document.filename,
+      label: document.label,
+      savedOn: isoDate(document.createdAt),
+    }));
+  },
+});
+
+export const approveJobSubmission = defineTool({
+  approval: always(),
+  description:
+    "Ask the user to approve submitting one prefilled job application, then return a one-time grant for it. Call only after a browser worker prefilled the form and stopped before the final submit, and after you sent the user what will be submitted: company, role, resume label and the answers the worker filled. The user approves or denies with a button. On approval, continue the same worker with its agentId, the grant token and the submit button selector so its submit_application tool can submit. The grant works once, for that browser session, for 15 minutes.",
+  inputSchema: z.object({
+    browserSessionId: z.string().trim().min(1).max(500),
+    company: z.string().trim().min(1).max(120),
+    postingId: z.uuid().optional(),
+    role: z.string().trim().max(200).optional(),
+    summary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1_500)
+      .describe(
+        "What will be submitted, as the user should see it in the approval prompt."
+      ),
+  }),
+  async execute(input, context) {
+    const grant = await createJobSubmissionGrant(callerScope(context), input);
+    return {
+      expiresAt: grant.expiresAt.toISOString(),
+      grantToken: grant.token,
+    };
+  },
+});
+
 export default defineDynamic({
   events: {
     "turn.started": (_event, context) =>
       resolveModeValue(context, {
         interactive: {
+          "jobs-approve-submit": approveJobSubmission,
+          "jobs-documents": listJobDocumentsTool,
           "jobs-find": findJobs,
           "jobs-log": logJob,
           "jobs-log-list": listJobLog,
           "jobs-preferences": jobPreferencesTool,
+          "jobs-profile": jobProfileTool,
         },
         "scheduled-worker": {
           "jobs-find": findJobs,

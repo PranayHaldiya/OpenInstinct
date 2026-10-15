@@ -74,6 +74,8 @@ describe("root and worker capability boundaries", () => {
       "personal_info.ts",
       "read_file.ts",
       "semantic_browser.ts",
+      "stage_document.ts",
+      "submit_application.ts",
       "web_fetch.ts",
       "web_search.ts",
       "write_file.ts",

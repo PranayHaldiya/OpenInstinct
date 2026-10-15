@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db, jobApplications, jobPostings, jobRecommendations } from "@db";
 import type { AccessScope } from "@shared/identity/access-scope";
 import { companyKey, type jobApplicationStatuses } from "@shared/jobs/schema";
@@ -113,6 +113,7 @@ export async function recordJobApplication(
 export async function listJobApplications(
   scope: AccessScope,
   input: {
+    readonly followUpDueBy?: Date;
     readonly limit: number;
     readonly statuses?: readonly (typeof jobApplicationStatuses)[number][];
   }
@@ -125,6 +126,9 @@ export async function listJobApplications(
         owner(scope),
         input.statuses?.length
           ? inArray(jobApplications.status, [...input.statuses])
+          : undefined,
+        input.followUpDueBy
+          ? lte(jobApplications.followUpAt, input.followUpDueBy)
           : undefined
       )
     )

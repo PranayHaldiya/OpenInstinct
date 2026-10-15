@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -159,6 +160,98 @@ export const jobRecommendations = pgTable(
     }),
     foreignKey({
       name: "job_recommendations_membership_fkey",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [
+        workspaceMemberships.workspaceId,
+        workspaceMemberships.userId,
+      ],
+    }).onDelete("cascade"),
+  ]
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+// The facts a user has confirmed about themselves for applications and
+// outreach. Drafts may only use what is written here.
+export const jobProfiles = pgTable(
+  "job_profiles",
+  {
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    facts: text("facts").notNull(),
+    updatedAt: timestampColumn("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    foreignKey({
+      name: "job_profiles_membership_fkey",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [
+        workspaceMemberships.workspaceId,
+        workspaceMemberships.userId,
+      ],
+    }).onDelete("cascade"),
+  ]
+);
+
+// Files a user attaches to applications, such as resume variants.
+export const jobDocuments = pgTable(
+  "job_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    label: text("label").notNull(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestampColumn("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "job_documents_membership_fkey",
+      columns: [table.workspaceId, table.userId],
+      foreignColumns: [
+        workspaceMemberships.workspaceId,
+        workspaceMemberships.userId,
+      ],
+    }).onDelete("cascade"),
+    uniqueIndex("job_documents_label_idx").on(
+      table.workspaceId,
+      table.userId,
+      table.label
+    ),
+    check(
+      "job_documents_size_check",
+      sql`octet_length(${table.content}) <= 10485760`
+    ),
+  ]
+);
+
+// One-time permission to submit one prefilled application. Only a tool call
+// the user approved can create a grant; the browser worker's submit tool
+// spends it. Nothing else in the agent can mint one.
+export const jobSubmissionGrants = pgTable(
+  "job_submission_grants",
+  {
+    token: uuid("token").defaultRandom().primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+    userId: text("user_id").notNull(),
+    browserSessionId: text("browser_session_id").notNull(),
+    postingId: uuid("posting_id").references(() => jobPostings.id, {
+      onDelete: "set null",
+    }),
+    company: text("company").notNull(),
+    role: text("role"),
+    expiresAt: timestampColumn("expires_at").notNull(),
+    usedAt: timestampColumn("used_at"),
+    createdAt: timestampColumn("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "job_submission_grants_membership_fkey",
       columns: [table.workspaceId, table.userId],
       foreignColumns: [
         workspaceMemberships.workspaceId,
