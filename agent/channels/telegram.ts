@@ -19,7 +19,10 @@ import {
   extractImageArtifactMarkdownReferences,
   stripImageArtifactMarkdownReferences,
 } from "../lib/linq-image-artifact/markdown";
-import { finalizeScheduledReportDelivery } from "@agent/lib/schedules/report-lifecycle";
+import {
+  finalizeScheduledReportDelivery,
+  scheduledReportFromSession,
+} from "@agent/lib/schedules/report-lifecycle";
 
 const botUsername = env.TELEGRAM_BOT_USERNAME;
 const unlinkedReply =
@@ -40,6 +43,14 @@ export default telegramChannel({
       if (event.status !== "completed" || !message.success) return;
       await channel.telegram.post(telegramText(message.data.output));
       await finalizeScheduledReportDelivery(session);
+    },
+    // As with Linq, only send_message reaches the user. Final assistant text,
+    // such as the DELIVERY_COMPLETE terminator, stays internal.
+    async "message.completed"(event, _channel, session) {
+      if (event.finishReason === "tool-calls") return;
+      if (scheduledReportFromSession(session)) {
+        await finalizeScheduledReportDelivery(session, "suppressed");
+      }
     },
   },
   async onMessage(context, message) {
