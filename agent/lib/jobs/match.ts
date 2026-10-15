@@ -22,6 +22,15 @@ export interface JobMatch {
 
 const dayMs = 86_400_000;
 // Pay problems no ranking can make up for.
+// Postings straight from the employer beat aggregator reposts, which skew
+// toward agencies and stale listings.
+const directSources = new Set<Posting["source"]>([
+  "ashby",
+  "greenhouse",
+  "lever",
+  "hn",
+  "yc",
+]);
 const disqualifyingFlag = /\bunpaid\b|equity[- ]only|commission[- ]only/i;
 
 // A term matches at the start of a word, so "agent" finds "agentic" but
@@ -96,6 +105,7 @@ export function matchJobs(
     if (screen.remote === "anywhere" || screen.remote === "india") score += 2;
     if (screen.remote === "apac") score += 1;
     if (screen.method === "model") score += 1;
+    if (directSources.has(posting.source)) score += 2;
     const ageDays =
       (context.now.getTime() -
         (posting.postedAt ?? posting.firstSeenAt).getTime()) /

@@ -123,6 +123,16 @@ describe("matchJobs", () => {
     expect(matches[2]?.stretch).toBe(true);
   });
 
+  it("ranks employer postings above aggregator reposts", () => {
+    expect(
+      matchJobs(
+        [posting("repost", { source: "himalayas" }), posting("direct")],
+        preferences,
+        context
+      ).map((match) => match.posting.id)
+    ).toEqual(["direct", "repost"]);
+  });
+
   it("keeps one posting per company and honors the query", () => {
     const rows = ["1", "2", "3"].map((id) =>
       posting(id, { companyKey: "same", description: id === "3" ? "rust" : "" })
