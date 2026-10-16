@@ -32,7 +32,6 @@ import {
   companyKey,
   jobApplicationStatuses,
   jobPreferencesPatchSchema,
-  jobPreferencesSchema,
   type JobPreferences,
 } from "@shared/jobs/schema";
 
@@ -248,9 +247,7 @@ export const jobPreferencesTool = defineTool({
   },
 });
 
-function summarizePreferences(
-  preferences: z.infer<typeof jobPreferencesSchema>
-) {
+function summarizePreferences(preferences: JobPreferences) {
   const { excludeCompanies, ...rest } = preferences;
   return {
     ...rest,
