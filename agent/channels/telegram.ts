@@ -22,6 +22,11 @@ import {
   stripImageArtifactMarkdownReferences,
 } from "../lib/linq-image-artifact/markdown";
 import {
+  maxDocumentBytes,
+  saveTelegramDocuments,
+  telegramFetch,
+} from "@agent/lib/jobs/telegram-upload";
+import {
   finalizeScheduledReportDelivery,
   scheduledReportFromSession,
 } from "@agent/lib/schedules/report-lifecycle";
@@ -31,6 +36,7 @@ const unlinkedReply =
   "I don't know who you are yet. Open your OpenInstinct workspace and tap Connect Telegram.";
 
 export default telegramChannel({
+  api: { fetch: telegramFetch },
   botUsername,
   credentials: {
     botToken: env.TELEGRAM_BOT_TOKEN,
@@ -88,6 +94,9 @@ export default telegramChannel({
     await context.telegram.startTyping();
     const principalId = `better-auth:${userId}`;
     const scope = accessScopeForUser(principalId);
+    const uploads = isPrivate
+      ? await saveTelegramDocuments(scope, message.attachments)
+      : [];
     return {
       auth: {
         ...auth,
@@ -99,7 +108,14 @@ export default telegramChannel({
         },
         principalId,
       },
+      context: uploads,
     };
+  },
+  // The model reads PDFs and images the user sends; Word files are only
+  // saved as job documents.
+  uploadPolicy: {
+    allowedMediaTypes: ["application/pdf", "image/*"],
+    maxBytes: maxDocumentBytes,
   },
 });
 

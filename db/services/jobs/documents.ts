@@ -68,3 +68,27 @@ export async function readJobDocument(scope: AccessScope, label: string) {
     .limit(1);
   return row;
 }
+
+/** Renames a document; false when it doesn't exist or the new label is taken. */
+export async function renameJobDocument(
+  scope: AccessScope,
+  label: string,
+  newLabel: string
+) {
+  if (label === newLabel) return Boolean(await readJobDocument(scope, label));
+  if (await readJobDocument(scope, newLabel)) return false;
+  const rows = await db
+    .update(jobDocuments)
+    .set({ label: newLabel })
+    .where(and(owner(scope), eq(jobDocuments.label, label)))
+    .returning({ id: jobDocuments.id });
+  return rows.length > 0;
+}
+
+export async function deleteJobDocument(scope: AccessScope, label: string) {
+  const rows = await db
+    .delete(jobDocuments)
+    .where(and(owner(scope), eq(jobDocuments.label, label)))
+    .returning({ id: jobDocuments.id });
+  return rows.length > 0;
+}

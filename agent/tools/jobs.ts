@@ -12,7 +12,11 @@ import {
   recordJobApplication,
   recordJobRecommendations,
 } from "@db/services/jobs/applications";
-import { listJobDocuments } from "@db/services/jobs/documents";
+import {
+  deleteJobDocument,
+  listJobDocuments,
+  renameJobDocument,
+} from "@db/services/jobs/documents";
 import { createJobSubmissionGrant } from "@db/services/jobs/grants";
 import {
   getJobProfileFacts,
@@ -23,10 +27,12 @@ import {
   getJobPreferences,
   updateJobPreferences,
 } from "@db/services/jobs/preferences";
+import type { AccessScope } from "@shared/identity/access-scope";
 import {
   companyKey,
   jobApplicationStatuses,
   jobPreferencesSchema,
+  type JobPreferences,
 } from "@shared/jobs/schema";
 
 const dayMs = 86_400_000;
@@ -43,9 +49,26 @@ function isoDate(date: Date | null) {
   return date ? date.toISOString().slice(0, 10) : null;
 }
 
+/** Setup steps a user hasn't done yet, in the order to ask about them. */
+async function setupGaps(scope: AccessScope, preferences: JobPreferences) {
+  const [documents, facts] = await Promise.all([
+    listJobDocuments(scope),
+    getJobProfileFacts(scope),
+  ]);
+  return [
+    preferences.country === null ? "country" : null,
+    preferences.titleKeywords.length === 0 &&
+    preferences.stackKeywords.length === 0
+      ? "roles and stack"
+      : null,
+    documents.length === 0 ? "resume" : null,
+    facts?.facts.trim() ? null : "profile facts",
+  ].filter((gap) => gap !== null);
+}
+
 export const findJobs = defineTool({
   description:
-    "Find open job postings that match the user's saved job preferences, ranked best first. Postings come from Ashby, Greenhouse and Lever boards, Hacker News Who's Hiring, RemoteOK, Himalayas and YC, and are already screened for workplace and regions, employer type, seniority, years asked and red flags. Only postings the user can work from their saved country appear; with no country saved, only remote worldwide ones do, and countryMissing is true. Companies the user applied to, messaged, skipped or excluded never appear, and postings already shown are skipped unless includeShown is true. Returned postings are recorded as shown. Use query to narrow by keywords that must all appear. Each result's id works with jobs-log.",
+    "Find open job postings that match the user's saved job preferences, ranked best first. Postings come from Ashby, Greenhouse and Lever boards, Hacker News Who's Hiring, RemoteOK, Himalayas and YC, and are already screened for workplace and regions, employer type, seniority, years asked and red flags. Only postings the user can work from their saved country appear; with no country saved, only remote worldwide ones do, and countryMissing is true. setupMissing lists setup steps the user hasn't done. Companies the user applied to, messaged, skipped or excluded never appear, and postings already shown are skipped unless includeShown is true. Returned postings are recorded as shown. Use query to narrow by keywords that must all appear. Each result's id works with jobs-log.",
   inputSchema: z.object({
     includeShown: z.boolean().default(false),
     limit: z.number().int().min(1).max(20).optional(),
@@ -77,6 +100,7 @@ export const findJobs = defineTool({
     );
     return {
       countryMissing: preferences.country === null,
+      setupMissing: await setupGaps(scope, preferences),
       matchedTotal: matches.length,
       postings: picked.map(({ posting, reasons, stretch }) => ({
         applyUrl: posting.applyUrl,
@@ -188,7 +212,7 @@ const preferencesPatchSchema = jobPreferencesSchema
 
 export const jobPreferencesTool = defineTool({
   description:
-    "Read or change the user's job search preferences: country they live in (ISO 3166-1 alpha-2 code such as IN, US or GB), workplaces they accept (remote, hybrid, onsite; hybrid and onsite match offices anywhere in their country), whether to include postings that don't say how or where they're worked, languages they work in (ISO 639-1 codes such as en, pt; postings needing any other are skipped), employer types to exclude (agency: recruiters hiring for a client; services: consultancies building for clients; product), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
+    "Read or change the user's job search preferences: country they live in (ISO 3166-1 alpha-2 code such as IN, US or GB), workplaces they accept (remote, hybrid, onsite; hybrid and onsite match offices anywhere in their country), whether to include postings that don't say how or where they're worked, languages they work in (ISO 639-1 codes such as en, pt; postings needing any other are skipped), employer types to exclude (agency: recruiters hiring for a client; services: consultancies building for clients; product), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read; the read also lists setupMissing, the setup steps the user hasn't done. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
   inputSchema: preferencesPatchSchema,
   async execute(
     { excludeCompaniesAdd, excludeCompaniesRemove, ...patch },
@@ -200,7 +224,12 @@ export const jobPreferencesTool = defineTool({
       excludeCompaniesAdd !== undefined ||
       excludeCompaniesRemove !== undefined;
     const current = await getJobPreferences(scope);
-    if (!hasChange) return summarizePreferences(current);
+    if (!hasChange) {
+      return {
+        ...summarizePreferences(current),
+        setupMissing: await setupGaps(scope, current),
+      };
+    }
     const removed = new Set((excludeCompaniesRemove ?? []).map(companyKey));
     const excludeCompanies = [
       ...current.excludeCompanies,
@@ -258,16 +287,49 @@ export const jobProfileTool = defineTool({
   },
 });
 
+const documentLabelSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^[a-z0-9][a-z0-9-]{0,39}$/,
+    "Use lower-case letters, digits and dashes."
+  );
+
 export const listJobDocumentsTool = defineTool({
   description:
-    "List the user's saved application documents, such as resume variants, by label. Name a label in a browser assignment so the worker's stage_document can attach it to a form; the worker never sees the file's content.",
-  inputSchema: z.object({}),
-  async execute(_input, context) {
-    return (await listJobDocuments(callerScope(context))).map((document) => ({
-      filename: document.filename,
-      label: document.label,
-      savedOn: isoDate(document.createdAt),
-    }));
+    "List the user's saved application documents, such as resume variants, by label, and rename or delete one. Documents the user sends in chat as PDF or Word files are saved automatically. Name a label in a browser assignment so the worker's stage_document can attach it to a form; the worker never sees the file's content. Rename or delete only when the user asks or agrees.",
+  inputSchema: z.object({
+    delete: documentLabelSchema.optional(),
+    rename: z
+      .object({ from: documentLabelSchema, to: documentLabelSchema })
+      .optional(),
+  }),
+  async execute(input, context) {
+    const scope = callerScope(context);
+    const changes: string[] = [];
+    if (input.rename) {
+      const { from, to } = input.rename;
+      changes.push(
+        (await renameJobDocument(scope, from, to))
+          ? `renamed ${from} to ${to}`
+          : `could not rename ${from}: it doesn't exist or ${to} is taken`
+      );
+    }
+    if (input.delete) {
+      changes.push(
+        (await deleteJobDocument(scope, input.delete))
+          ? `deleted ${input.delete}`
+          : `no document labeled ${input.delete}`
+      );
+    }
+    return {
+      changes,
+      documents: (await listJobDocuments(scope)).map((document) => ({
+        filename: document.filename,
+        label: document.label,
+        savedOn: isoDate(document.createdAt),
+      })),
+    };
   },
 });
 

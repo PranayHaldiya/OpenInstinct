@@ -56,6 +56,31 @@ describe("job applying services", () => {
     ).toBe("%PDF-1.7 v2");
     expect(await documents.readJobDocument(bob, "agents")).toBeUndefined();
 
+    // Uploads arrive under a file-name label and get renamed or deleted.
+    await documents.saveJobDocument(alice, {
+      content: Buffer.from("%PDF-1.7 upload"),
+      filename: "Alice CV.pdf",
+      label: "alice-cv",
+      mimeType: "application/pdf",
+    });
+    expect(await documents.renameJobDocument(alice, "alice-cv", "agents")).toBe(
+      false
+    );
+    expect(await documents.renameJobDocument(bob, "alice-cv", "mine")).toBe(
+      false
+    );
+    expect(
+      await documents.renameJobDocument(alice, "alice-cv", "fullstack")
+    ).toBe(true);
+    expect(
+      (await documents.listJobDocuments(alice)).map((row) => row.label)
+    ).toEqual(["agents", "fullstack"]);
+    expect(await documents.deleteJobDocument(bob, "fullstack")).toBe(false);
+    expect(await documents.deleteJobDocument(alice, "fullstack")).toBe(true);
+    expect(
+      (await documents.listJobDocuments(alice)).map((row) => row.label)
+    ).toEqual(["agents"]);
+
     const grant = await grants.createJobSubmissionGrant(alice, {
       browserSessionId: "browser-1",
       company: "Acme",
