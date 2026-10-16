@@ -1,10 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
-import { del, put } from "@vercel/blob";
 import { defineTool, toolOutput } from "eve/tools";
 import { z } from "zod";
 import { requireWorkerScope } from "@agent/subagents/browser-agent/lib/access";
 import { requireOwnedBrowserSession } from "@agent/subagents/browser-agent/lib/owned-browser";
 import { withVaultScreenshotMask } from "@agent/subagents/browser-agent/lib/vault-screenshot-mask";
+import {
+  deleteBrowserImageContent,
+  storeBrowserImageContent,
+} from "@db/services/browser-image-content";
 import {
   finalizeBrowserImageArtifact,
   reserveBrowserImageArtifact,
@@ -15,7 +18,6 @@ import {
   maximumBrowserImageBytes,
   sniffBrowserImageMediaType,
 } from "@shared/browser/artifact";
-import { env } from "@shared/environment";
 import { kernel } from "@agent/subagents/browser-agent/lib/kernel";
 
 const regionSchema = z.object({
@@ -55,7 +57,7 @@ type CaptureInput = z.infer<typeof inputSchema>;
 
 export default defineTool({
   description:
-    "Capture one durable, user-visible image from an owned browser. Use only when the assignment requests an image or one image materially improves the final result; never persist routine debugging screenshots. Supports viewport or region screenshots, full-page screenshots, rendered element screenshots, and original image resources selected from the current page. Original resource capture falls back to the rendered element when needed. Does not expose private Blob URLs or page credentials.",
+    "Capture one durable, user-visible image from an owned browser. Use only when the assignment requests an image or one image materially improves the final result; never persist routine debugging screenshots. Supports viewport or region screenshots, full-page screenshots, rendered element screenshots, and original image resources selected from the current page. Original resource capture falls back to the rendered element when needed. Does not expose private storage URLs or page credentials.",
   inputSchema,
   outputSchema,
   async execute(input, context) {
@@ -298,19 +300,17 @@ async function persistCapturedImage(
     throw new Error("The captured resource is not a supported browser image.");
   const contentHash = createHash("sha256").update(input.bytes).digest("hex");
   const storagePathname = `${reservation.storagePathname}/${contentHash}`;
-  if (!env.BLOB_STORE_ID && !env.BLOB_READ_WRITE_TOKEN) {
-    throw new Error("Browser image storage is not configured.");
-  }
 
-  await put(storagePathname, Buffer.from(input.bytes), {
-    access: "private",
-    abortSignal: signal,
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    cacheControlMaxAge: 30 * 24 * 60 * 60,
-    contentType: mediaType,
-    maximumSizeInBytes: maximumBrowserImageBytes,
-  });
+  await storeBrowserImageContent(
+    {
+      artifactId: reservation.id,
+      bytes: input.bytes,
+      contentHash,
+      mediaType,
+      storagePathname,
+    },
+    signal
+  );
   try {
     const finalized = await finalizeBrowserImageArtifact(scope, reservation, {
       byteSize: input.bytes.byteLength,
@@ -321,11 +321,11 @@ async function persistCapturedImage(
       storagePathname,
     });
     if (finalized.storagePathname !== storagePathname) {
-      await del(storagePathname).catch(() => undefined);
+      await deleteBrowserImageContent(storagePathname).catch(() => undefined);
     }
     return finalized.image;
   } catch (error) {
-    await del(storagePathname).catch(() => undefined);
+    await deleteBrowserImageContent(storagePathname).catch(() => undefined);
     throw error;
   }
 }

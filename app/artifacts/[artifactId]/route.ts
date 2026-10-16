@@ -1,9 +1,8 @@
-import { get } from "@vercel/blob";
 import { z } from "zod";
 import { getAuthSession } from "@db/services/auth/session";
+import { openBrowserImageContent } from "@db/services/browser-image-content";
 import { readReadyBrowserImageArtifact } from "@db/services/browser-images";
 import { accessScopeForUser } from "@shared/identity/access-scope";
-import { env } from "@shared/environment";
 
 export const runtime = "nodejs";
 
@@ -23,8 +22,8 @@ export async function GET(
   if (!opened) return notFound();
 
   const headers = privateImageHeaders();
-  headers.set("etag", opened.result.blob.etag);
-  if (opened.result.statusCode === 304) {
+  headers.set("etag", opened.content.etag);
+  if (opened.content.status === 304) {
     return new Response(null, { headers, status: 304 });
   }
 
@@ -34,7 +33,7 @@ export async function GET(
     "content-disposition",
     contentDisposition(opened.artifact.filename)
   );
-  return new Response(opened.result.stream, { headers, status: 200 });
+  return new Response(opened.content.body, { headers, status: 200 });
 }
 
 async function openArtifact(
@@ -47,19 +46,12 @@ async function openArtifact(
   const filename = artifact?.filename;
   const mediaType = artifact?.mediaType;
   if (!artifact || !byteSize || !filename || !mediaType) return undefined;
-  if (!env.BLOB_STORE_ID && !env.BLOB_READ_WRITE_TOKEN) return undefined;
-  const result = await get(artifact.storagePathname, {
-    access: "private",
-    abortSignal: options.signal,
-    ifNoneMatch: options.ifNoneMatch,
-  });
-  if (!result) return undefined;
-  if (
-    result.statusCode === 200 &&
-    (result.blob.size !== byteSize || result.blob.contentType !== mediaType)
-  )
-    return undefined;
-  return { artifact: { ...artifact, byteSize, filename, mediaType }, result };
+  const content = await openBrowserImageContent(
+    { byteSize, mediaType, storagePathname: artifact.storagePathname },
+    options
+  );
+  if (!content) return undefined;
+  return { artifact: { ...artifact, byteSize, filename, mediaType }, content };
 }
 
 function notFound() {

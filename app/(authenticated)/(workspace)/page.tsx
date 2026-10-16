@@ -81,13 +81,13 @@ export default async function Page({ searchParams }: PageProps<"/">) {
           <ConnectorRow
             action={
               <Badge variant={imageStorageReady ? "success" : "secondary"}>
-                {imageStorageReady ? "Connected" : "Setup required"}
+                {imageStorageReady ? "Connected" : "Database"}
               </Badge>
             }
             description={
               imageStorageReady
                 ? "Store browser images in a private Vercel Blob store."
-                : "Connect a private Vercel Blob store to share browser images."
+                : "Browser images are stored in this app's database. Connect a private Vercel Blob store to keep them there instead."
             }
             icon={<ImageIcon />}
             label="Vercel Blob"

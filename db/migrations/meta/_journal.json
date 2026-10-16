@@ -162,6 +162,13 @@
       "when": 1792147157540,
       "tag": "0022_hub_user_country_job_languages",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792148698230,
+      "tag": "0023_browser_image_contents",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -202,6 +203,37 @@ export const browserImageArtifacts = pgTable(
       table.workspaceId,
       table.createdAt.desc().nullsFirst()
     ),
+  ]
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+// Image bytes for deployments without a Blob store, such as Maritime VMs.
+// Keyed like a Blob pathname so both stores share the artifact contract.
+export const browserImageContents = pgTable(
+  "browser_image_contents",
+  {
+    storagePathname: text("storage_pathname").primaryKey(),
+    artifactId: uuid("artifact_id").notNull(),
+    contentHash: text("content_hash").notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", {
+      mode: "date",
+      precision: 3,
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "browser_image_contents_artifact_fkey",
+      columns: [table.artifactId],
+      foreignColumns: [browserImageArtifacts.id],
+    }).onDelete("cascade"),
+    index("browser_image_contents_artifact_idx").on(table.artifactId),
   ]
 );
 
