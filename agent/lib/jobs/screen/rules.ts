@@ -230,6 +230,37 @@ function extractRedFlags(text: string) {
     .map(([name]) => name);
 }
 
+// Words common in one language's postings and rare in the others'.
+const languageMarkers: readonly [string, RegExp][] = [
+  ["en", /\b(the|and|you|with|our|will|experience|team)\b/gi],
+  [
+    "pt",
+    /\b(você|voce|para|com|uma|não|experiência|conhecimento|trabalho|nossa|vaga|desenvolvimento)\b/gi,
+  ],
+  [
+    "es",
+    /\b(con|una|experiencia|trabajo|nuestro|nuestra|puesto|conocimientos|desarrollo|usted)\b/gi,
+  ],
+  ["de", /\b(und|die|der|mit|für|wir|sie|erfahrung|unser|kenntnisse)\b/gi],
+  [
+    "fr",
+    /\b(et|les|des|pour|avec|vous|nous|expérience|poste|connaissances)\b/gi,
+  ],
+];
+
+/** The language a posting is written in, by marker words; English when unsure. */
+export function detectLanguage(text: string) {
+  const sample = text.slice(0, 4_000);
+  const counts = languageMarkers.map(
+    ([code, pattern]) => [code, sample.match(pattern)?.length ?? 0] as const
+  );
+  const english = counts[0]?.[1] ?? 0;
+  const [code, count] = counts.reduce((best, entry) =>
+    entry[1] > best[1] ? entry : best
+  );
+  return count >= 8 && count > english * 2 ? code : "en";
+}
+
 // Phrases only a recruiter hiring for someone else writes. "Not working with
 // staffing agencies" is common in employer postings, so agency names alone
 // don't count.
@@ -254,6 +285,7 @@ export function screenWithRules(input: ScreenInput): JobScreen {
     method: "rules",
     ...classifyLocation(input.location, input.workplaceType),
     employerType: classifyEmployer(input.company, input.description),
+    languages: [detectLanguage(`${input.title}\n${input.description}`)],
     minYears: extractMinYears(input.description),
     redFlags: extractRedFlags(text),
     roleFamily: classifyRoleFamily(input.title),

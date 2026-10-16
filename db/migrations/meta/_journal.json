@@ -155,6 +155,13 @@
       "when": 1792140218910,
       "tag": "0021_jobs_location_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792147157540,
+      "tag": "0022_hub_user_country_job_languages",
+      "breakpoints": true
     }
   ]
 }

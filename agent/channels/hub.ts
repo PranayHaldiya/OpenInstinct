@@ -6,8 +6,13 @@ import {
 } from "@agent/lib/hub/router";
 import { verifyHubToken } from "@agent/lib/hub/token";
 import { ingestJobs } from "@agent/lib/jobs/ingest";
+import { recordHubUserCountry } from "@db/services/hub/users";
 import { listCandidateJobPostings } from "@db/services/jobs/postings";
-import { locationCodeSchema, workplaces } from "@shared/jobs/schema";
+import {
+  countryCodeSchema,
+  locationCodeSchema,
+  workplaces,
+} from "@shared/jobs/schema";
 import { env } from "@shared/environment";
 
 const notFound = () => new Response(null, { status: 404 });
@@ -55,6 +60,7 @@ export default defineChannel({
       }
       const query = z
         .object({
+          country: countryCodeSchema.optional(),
           regions: z
             .string()
             .transform((value) => value.split(","))
@@ -68,6 +74,9 @@ export default defineChannel({
         })
         .safeParse(Object.fromEntries(new URL(request.url).searchParams));
       if (!query.success) return new Response(null, { status: 400 });
+      if (query.data.country) {
+        await recordHubUserCountry(telegramUserId, query.data.country);
+      }
       const postings = await listCandidateJobPostings({
         includeUnclear: query.data.unclear,
         regions: query.data.regions,

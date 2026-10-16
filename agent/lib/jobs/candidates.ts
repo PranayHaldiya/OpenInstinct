@@ -55,6 +55,9 @@ export async function loadCandidatePostings(
       "eve/v1/hub/jobs",
       `${env.OI_HUB_URL.replace(/\/$/, "")}/`
     );
+    if (preferences.country) {
+      url.searchParams.set("country", preferences.country);
+    }
     url.searchParams.set("regions", input.regions.join(","));
     url.searchParams.set("workplaces", input.workplaces.join(","));
     url.searchParams.set("unclear", input.includeUnclear ? "1" : "0");

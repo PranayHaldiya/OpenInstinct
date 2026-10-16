@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, hubPendingUpdates, hubUsers } from "@db";
 
 type QueuedUpdate = (typeof hubPendingUpdates.$inferSelect)["update"];
@@ -41,6 +41,33 @@ export async function updateHubUser(
     .update(hubUsers)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(hubUsers.telegramUserId, telegramUserId));
+}
+
+/** Saves the country a user's VM searches for; true when it changed. */
+export async function recordHubUserCountry(
+  telegramUserId: string,
+  country: string
+) {
+  const rows = await db
+    .update(hubUsers)
+    .set({ country, updatedAt: new Date() })
+    .where(
+      and(
+        eq(hubUsers.telegramUserId, telegramUserId),
+        sql`${hubUsers.country} IS DISTINCT FROM ${country}`
+      )
+    )
+    .returning({ telegramUserId: hubUsers.telegramUserId });
+  return rows.length > 0;
+}
+
+/** Every country a hub user searches jobs for. */
+export async function listHubUserCountries() {
+  const rows = await db
+    .selectDistinct({ country: hubUsers.country })
+    .from(hubUsers)
+    .where(isNotNull(hubUsers.country));
+  return rows.flatMap((row) => (row.country ? [row.country] : []));
 }
 
 export async function listHubUsersByStatus(

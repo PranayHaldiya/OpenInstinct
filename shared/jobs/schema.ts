@@ -42,7 +42,10 @@ export const locationCodeSchema = z
   .string()
   .regex(new RegExp(`^(?:[A-Z]{2}|worldwide|${regionNames.join("|")})$`));
 
-const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+export const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+
+/** ISO 639-1 language code, such as `en` or `pt`. */
+const languageCodeSchema = z.string().regex(/^[a-z]{2}$/);
 
 /** Who is hiring: the company itself, a recruiter for a client, or a firm that builds for clients. */
 export const employerTypes = [
@@ -81,6 +84,8 @@ export const jobScreenSchema = z.strictObject({
   regions: z.array(locationCodeSchema).max(30),
   locationEvidence: z.string().max(300),
   employerType: z.enum(employerTypes),
+  /** Languages the work needs: the posting's own plus any it requires. */
+  languages: z.array(languageCodeSchema).min(1).max(5),
   minYears: z.number().int().min(0).max(30).nullable(),
   seniority: z.enum(seniorities),
   roleFamily: z.enum(roleFamilies),
@@ -103,6 +108,8 @@ export const jobPreferencesSchema = z.strictObject({
     .default(["remote"]),
   /** Keep postings that don't say how or where the role is worked. */
   includeUnclearLocation: z.boolean().default(false),
+  /** Languages the user works in; postings needing another are skipped. */
+  languages: z.array(languageCodeSchema).min(1).max(10).default(["en"]),
   excludeEmployerTypes: z.array(z.enum(employerTypes)).default(["agency"]),
   maxYears: z.number().int().min(0).max(30).default(3),
   stretchYears: z.number().int().min(0).max(30).default(4),

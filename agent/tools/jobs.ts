@@ -88,6 +88,7 @@ export const findJobs = defineTool({
         postedOn: isoDate(posting.postedAt ?? posting.firstSeenAt),
         reasons,
         employerType: posting.screen?.employerType,
+        languages: posting.screen?.languages,
         locationEvidence: posting.screen?.locationEvidence,
         openFrom: posting.screen?.regions,
         workplace: posting.screen?.workplace,
@@ -187,7 +188,7 @@ const preferencesPatchSchema = jobPreferencesSchema
 
 export const jobPreferencesTool = defineTool({
   description:
-    "Read or change the user's job search preferences: country they live in (ISO 3166-1 alpha-2 code such as IN, US or GB), workplaces they accept (remote, hybrid, onsite; hybrid and onsite match offices anywhere in their country), whether to include postings that don't say how or where they're worked, employer types to exclude (agency: recruiters hiring for a client; services: consultancies building for clients; product), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
+    "Read or change the user's job search preferences: country they live in (ISO 3166-1 alpha-2 code such as IN, US or GB), workplaces they accept (remote, hybrid, onsite; hybrid and onsite match offices anywhere in their country), whether to include postings that don't say how or where they're worked, languages they work in (ISO 639-1 codes such as en, pt; postings needing any other are skipped), employer types to exclude (agency: recruiters hiring for a client; services: consultancies building for clients; product), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
   inputSchema: preferencesPatchSchema,
   async execute(
     { excludeCompaniesAdd, excludeCompaniesRemove, ...patch },

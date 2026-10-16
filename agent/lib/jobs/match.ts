@@ -140,6 +140,11 @@ export function matchJobs(
     if (preferences.excludeEmployerTypes.includes(screen.employerType)) {
       continue;
     }
+    if (
+      !screen.languages.every((code) => preferences.languages.includes(code))
+    ) {
+      continue;
+    }
     if (preferences.excludeSeniorities.includes(screen.seniority)) continue;
     if (!preferences.roleFamilies.includes(screen.roleFamily)) continue;
     if (

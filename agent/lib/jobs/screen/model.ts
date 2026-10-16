@@ -55,6 +55,11 @@ const modelScreenSchema = z.object({
     .describe(
       "product: the company hires for its own product or service. agency: a recruiter or staffing firm hiring for a client company. services: a consultancy, agency or outsourcing firm whose engineers build for its clients; a title naming another vendor's product (such as 'AI Engineer - Anthropic' or 'Salesforce Developer') usually means services. unclear: can't tell."
     ),
+  languages: z
+    .array(z.string())
+    .describe(
+      'ISO 639-1 codes of the languages the work needs: the language the posting is written in, plus any it requires speaking ("fluent German required" adds de). Not languages listed as a plus.'
+    ),
   minYears: z
     .number()
     .int()
@@ -74,6 +79,20 @@ const modelScreenSchema = z.object({
       "One plain sentence under 30 words: what the company makes and what this role builds."
     ),
 });
+
+function normalizeLanguages(
+  raw: readonly string[],
+  fallback: readonly string[]
+) {
+  const codes = [
+    ...new Set(
+      raw
+        .map((code) => code.trim().toLowerCase())
+        .filter((code) => /^[a-z]{2}$/.test(code))
+    ),
+  ].slice(0, 5);
+  return codes.length > 0 ? codes : [...fallback];
+}
 
 export async function screenWithModel(
   posting: {
@@ -125,6 +144,7 @@ export async function screenWithModel(
     ),
     employerType:
       rules.employerType === "agency" ? "agency" : output.employerType,
+    languages: normalizeLanguages(output.languages, rules.languages),
     roleFamily: titleDecidedFamilies.has(rules.roleFamily)
       ? rules.roleFamily
       : output.roleFamily,

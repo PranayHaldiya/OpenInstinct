@@ -26,6 +26,9 @@ export const hubUsers = pgTable(
     forwardSecret: text("forward_secret").notNull(),
     status: text("status", { enum: hubUserStatuses }).notNull(),
     lastError: text("last_error"),
+    // The country the user's VM last searched jobs for, so the hub screens
+    // remote postings open there.
+    country: text("country"),
     createdAt: timestampColumn("created_at").defaultNow().notNull(),
     updatedAt: timestampColumn("updated_at").defaultNow().notNull(),
   },

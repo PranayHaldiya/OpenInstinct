@@ -4,6 +4,7 @@ import {
   classifyLocation,
   classifyRoleFamily,
   classifySeniority,
+  detectLanguage,
   extractMinYears,
   needsModelScreen,
   screenWithRules,
@@ -53,6 +54,25 @@ describe("classifyEmployer", () => {
     ],
   ])("reads %s as %s", (company, description, expected) => {
     expect(classifyEmployer(company, description)).toBe(expected);
+  });
+});
+
+describe("detectLanguage", () => {
+  it("reads English and short postings as English", () => {
+    expect(
+      detectLanguage(
+        "You will join our team and build the product with experience in React."
+      )
+    ).toBe("en");
+    expect(detectLanguage("Backend Engineer")).toBe("en");
+  });
+
+  it("reads a Portuguese posting", () => {
+    expect(
+      detectLanguage(
+        "Buscamos uma pessoa para a vaga de desenvolvimento full-stack. Você vai trabalhar com uma equipe incrível, com experiência em React e conhecimento em Node. Nossa empresa valoriza o trabalho remoto e não exige presença."
+      )
+    ).toBe("pt");
   });
 });
 

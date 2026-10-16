@@ -17,6 +17,7 @@ afterEach(async () => {
 
 const screen: JobScreen = {
   employerType: "unclear",
+  languages: ["en"],
   locationEvidence: "Remote",
   method: "rules",
   minYears: null,
@@ -111,6 +112,16 @@ describe("job search services", () => {
     ).toEqual([]);
     const [open] = candidates;
     if (!open) throw new Error("Expected an open posting.");
+
+    // Rules-only remote screens are listed for a later model read.
+    expect(
+      (
+        await postings.listRulesScreenedJobPostings(
+          new Date(Date.now() - 86_400_000),
+          10
+        )
+      ).map((row) => row.externalId)
+    ).toEqual(["acme:1"]);
 
     // A rebuilt hub index hands out new ids; the cached row keeps its own.
     await postings.cacheJobPostings([

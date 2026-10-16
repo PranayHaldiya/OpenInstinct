@@ -1,7 +1,10 @@
+import type { jobPostings } from "@db/schema";
+import { listHubUserCountries } from "@db/services/hub/users";
 import {
   addJobBoards,
   closeMissingBoardPostings,
   listDueJobBoards,
+  listRulesScreenedJobPostings,
   listUnscreenedJobPostings,
   markJobBoardFetched,
   saveJobScreen,
@@ -19,6 +22,7 @@ import {
   type FeedResult,
 } from "./sources/feeds";
 import { env } from "@shared/environment";
+import type { JobScreen } from "@shared/jobs/schema";
 import { seedJobBoards } from "./seed-boards";
 import { screenWithModel } from "./screen/model";
 import { needsModelScreen, screenWithRules } from "./screen/rules";
@@ -27,6 +31,8 @@ const boardRefreshMs = 12 * 3_600_000;
 // Older postings are past any user's freshness window; rules are enough.
 const modelScreenMaxAgeMs = 60 * 86_400_000;
 const concurrency = 4;
+
+type JobPosting = typeof jobPostings.$inferSelect;
 
 export interface IngestOptions {
   readonly boardLimit?: number;
@@ -127,21 +133,13 @@ export async function ingestJobs(options: IngestOptions = {}) {
     }
   });
 
+  // Screen for every country a user searches from, plus the configured ones.
+  const countries = [
+    ...new Set([...env.OI_SCREEN_COUNTRIES, ...(await listHubUserCountries())]),
+  ];
+  const modelAgeLimit = new Date(now.getTime() - modelScreenMaxAgeMs);
   let modelBudget = options.modelScreenLimit ?? 120;
-  const unscreened = await listUnscreenedJobPostings(5_000);
-  await eachLimited(unscreened, concurrency, async (posting) => {
-    const rules = screenWithRules(posting);
-    const postedAt = posting.postedAt ?? posting.firstSeenAt;
-    if (
-      !needsModelScreen(rules, env.OI_SCREEN_COUNTRIES) ||
-      now.getTime() - postedAt.getTime() > modelScreenMaxAgeMs
-    ) {
-      await saveJobScreen(posting.id, rules);
-      report.rulesScreened += 1;
-      return;
-    }
-    // Over budget, the posting stays unscreened for the next pass.
-    if (modelBudget <= 0) return;
+  const readWithModel = async (posting: JobPosting, rules: JobScreen) => {
     modelBudget -= 1;
     try {
       const read = await screenWithModel(posting, rules);
@@ -158,7 +156,34 @@ export async function ingestJobs(options: IngestOptions = {}) {
         `screen ${posting.id}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  };
+
+  const unscreened = await listUnscreenedJobPostings(5_000);
+  await eachLimited(unscreened, concurrency, async (posting) => {
+    const rules = screenWithRules(posting);
+    const postedAt = posting.postedAt ?? posting.firstSeenAt;
+    if (!needsModelScreen(rules, countries) || postedAt < modelAgeLimit) {
+      await saveJobScreen(posting.id, rules);
+      report.rulesScreened += 1;
+      return;
+    }
+    // Over budget, the posting stays unscreened for the next pass.
+    if (modelBudget > 0) await readWithModel(posting, rules);
   });
+
+  // A user from a new country makes rules-only postings open there worth a
+  // model read; spare budget upgrades them, newest first.
+  if (modelBudget > 0) {
+    const upgradable = (
+      await listRulesScreenedJobPostings(modelAgeLimit, 2_000)
+    ).filter(
+      (posting) => posting.screen && needsModelScreen(posting.screen, countries)
+    );
+    await eachLimited(upgradable, concurrency, async (posting) => {
+      if (modelBudget > 0)
+        await readWithModel(posting, screenWithRules(posting));
+    });
+  }
 
   return { ...report, errors, sources: Object.fromEntries(sources) };
 }

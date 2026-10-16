@@ -117,6 +117,28 @@ export async function listUnscreenedJobPostings(limit: number) {
     .limit(limit);
 }
 
+/**
+ * Open remote or unstated postings since `since` that only the rules have
+ * screened: candidates for a model read once a user's country needs one.
+ */
+export async function listRulesScreenedJobPostings(since: Date, limit: number) {
+  return db
+    .select()
+    .from(jobPostings)
+    .where(
+      and(
+        isNull(jobPostings.closedAt),
+        sql`${jobPostings.screen}->>'method' = 'rules'`,
+        sql`${jobPostings.screen}->>'workplace' IN ('remote', 'unclear')`,
+        sql`coalesce(${jobPostings.postedAt}, ${jobPostings.firstSeenAt}) >= ${since}`
+      )
+    )
+    .orderBy(
+      desc(sql`coalesce(${jobPostings.postedAt}, ${jobPostings.firstSeenAt})`)
+    )
+    .limit(limit);
+}
+
 /** Saves a screen, and for free-text sources the company and title it read. */
 export async function saveJobScreen(
   id: string,
