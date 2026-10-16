@@ -3,12 +3,12 @@ import { headers } from "next/headers";
 import { QueryProvider } from "@app/_providers/query-provider";
 import { TooltipProvider } from "@web/components/ui/tooltip";
 import { accessScopeForUser } from "@shared/identity/access-scope";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationBaseUrl } from "@shared/environment/origin";
 import { getAuthSession } from "@db/services/auth/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(applicationOrigin()),
+  metadataBase: new URL(`${applicationBaseUrl()}/`),
   title: "OpenInstinct",
   description:
     "A self-hosted personal agent with private credentials and Kernel-powered browser execution.",

@@ -23,7 +23,10 @@ export async function proxy(request: NextRequest) {
 
   if (await getAuthSession(request.headers)) return NextResponse.next();
 
-  const signInUrl = new URL("/sign-in", request.url);
+  // A cloned NextURL keeps the base path when the app runs under a prefix.
+  const signInUrl = request.nextUrl.clone();
+  signInUrl.pathname = "/sign-in";
+  signInUrl.search = "";
   signInUrl.searchParams.set(
     "callbackUrl",
     `${request.nextUrl.pathname}${request.nextUrl.search}`

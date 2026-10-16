@@ -29,6 +29,7 @@ import {
 import { Streamdown, type Components } from "streamdown";
 import { z } from "zod";
 import { isBrowserImageArtifactUrl } from "@shared/browser/artifact";
+import { withBasePath } from "@shared/environment/public/env";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -341,8 +342,10 @@ export function ArtifactMessageImage({
     );
   }
 
+  // Artifact URLs are app-root paths; the app may be served under a prefix.
+  const artifactUrl = withBasePath(parsedSource.data);
   return (
-    <a href={parsedSource.data} rel="noreferrer" target="_blank">
+    <a href={artifactUrl} rel="noreferrer" target="_blank">
       {/* oxlint-disable-next-line nextjs/no-img-element -- validated runtime browser image URL */}
       <img
         {...props}
@@ -354,7 +357,7 @@ export function ArtifactMessageImage({
         decoding="async"
         loading="lazy"
         referrerPolicy="no-referrer"
-        src={src}
+        src={artifactUrl}
       />
     </a>
   );

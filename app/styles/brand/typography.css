@@ -3,7 +3,7 @@
 
 @font-face {
   font-family: "Vault";
-  src: url("/fonts/vault-variable.woff2") format("woff2");
+  src: url("../../../public/fonts/vault-variable.woff2") format("woff2");
   font-weight: 300 800;
   font-style: normal;
   font-display: swap;
@@ -11,7 +11,7 @@
 
 @font-face {
   font-family: "Vault Sans";
-  src: url("/fonts/vault-sans-variable.woff2") format("woff2");
+  src: url("../../../public/fonts/vault-sans-variable.woff2") format("woff2");
   font-weight: 300 800;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 
 @font-face {
   font-family: "Vault Mono";
-  src: url("/fonts/vault-mono-variable.woff2") format("woff2");
+  src: url("../../../public/fonts/vault-mono-variable.woff2") format("woff2");
   font-weight: 300 800;
   font-style: normal;
   font-display: swap;

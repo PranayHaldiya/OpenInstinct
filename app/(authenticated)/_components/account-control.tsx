@@ -2,6 +2,7 @@
 
 import { LogOutIcon, UserIcon } from "lucide-react";
 import { authClient } from "@web/auth/client";
+import { withBasePath } from "@shared/environment/public/env";
 import {
   SidebarMenu,
   SidebarMenuAction,
@@ -26,7 +27,7 @@ export function AuthenticatedAccountControl() {
           aria-label="Sign out"
           onClick={() => {
             void authClient.signOut().finally(() => {
-              window.location.assign("/sign-in");
+              window.location.assign(withBasePath("/sign-in"));
             });
           }}
           title="Sign out"

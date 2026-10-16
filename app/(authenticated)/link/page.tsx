@@ -2,7 +2,8 @@ import { z } from "zod";
 import { getLinkAccount, linkConfigured } from "@db/services/auth/link";
 import { requireRequestScope } from "@web/auth/request-scope";
 import { Button } from "@web/components/ui/button";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationUrl } from "@shared/environment/origin";
+import { withBasePath } from "@shared/environment/public/env";
 
 export const metadata = {
   title: "Link wallet",
@@ -16,8 +17,7 @@ export default async function Page({ searchParams }: PageProps<"/link">) {
   const params = await searchParams;
   const attempt = z.uuid().safeParse(params.attempt);
   const configured = linkConfigured();
-  const callbackUrl = new URL("/api/auth/callback/link", applicationOrigin())
-    .href;
+  const callbackUrl = applicationUrl("/api/auth/callback/link").href;
   const connected =
     configured &&
     Boolean(await getLinkAccount(scope.userId.slice("better-auth:".length)));
@@ -111,7 +111,7 @@ export default async function Page({ searchParams }: PageProps<"/link">) {
       {configured && (
         <div className="flex flex-wrap gap-3">
           {(!connected || attempt.success) && (
-            <form action="/api/link" method="post">
+            <form action={withBasePath("/api/link")} method="post">
               <input type="hidden" name="operation" value="connect" />
               {attempt.success && (
                 <input type="hidden" name="attempt" value={attempt.data} />
@@ -135,7 +135,7 @@ export default async function Page({ searchParams }: PageProps<"/link">) {
             </Button>
           ) : (
             connected && (
-              <form action="/api/link" method="post">
+              <form action={withBasePath("/api/link")} method="post">
                 <input type="hidden" name="operation" value="disconnect" />
                 <Button type="submit" variant="outline">
                   Disconnect wallet

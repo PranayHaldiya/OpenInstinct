@@ -6,11 +6,13 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createServer, request as forward } from "node:http";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -36,6 +38,15 @@ const publicUrl =
   (inheritedEnvironment.MARITIME_AGENT_ID
     ? `https://api.maritime.sh/a/${inheritedEnvironment.MARITIME_AGENT_ID}`
     : `http://127.0.0.1:${port}`);
+
+// Maritime serves the VM at https://api.maritime.sh/a/<agentId> and strips
+// that prefix before traffic reaches PORT. Next.js serves the app under the
+// prefix so its pages, assets and links work at the public URL; the image is
+// built with a same-length placeholder base path that boot swaps for it.
+const basePath = new URL(publicUrl).pathname.replace(/\/+$/, "");
+const builtBasePath = inheritedEnvironment.OI_BUILT_BASE_PATH ?? "";
+// Next.js listens here when the launcher's proxy holds PORT.
+const nextInternalPort = "3100";
 
 const secretsSchema = z.object({
   betterAuthSecret: z.string().min(32),
@@ -74,6 +85,7 @@ async function main() {
       inheritedEnvironment.SECRET_ENCRYPTION_KEY ?? secrets.secretEncryptionKey,
   };
   await applyMigrations();
+  const servedBasePath = applyBasePath();
   // `next start` proxies eve routes to its fixed production port but does not
   // launch the eve server outside Vercel, so run it here.
   supervise(
@@ -98,10 +110,123 @@ async function main() {
     "next",
     spawn(process.execPath, [join(appRoot, "server.js")], {
       cwd: appRoot,
-      env: { ...environment, HOSTNAME: "0.0.0.0", PORT: port },
+      env: servedBasePath
+        ? { ...environment, HOSTNAME: "127.0.0.1", PORT: nextInternalPort }
+        : { ...environment, HOSTNAME: "0.0.0.0", PORT: port },
       stdio: "inherit",
     })
   );
+  if (servedBasePath) restorePrefix(servedBasePath);
+}
+
+/**
+ * Rewrites the build's placeholder base path to this VM's public prefix in
+ * Next's output, and returns the base path Next will serve. If the output
+ * can't be rewritten, Next keeps serving the placeholder, which the proxy
+ * still reaches, so webhooks keep working while page links stay broken.
+ */
+function applyBasePath() {
+  if (!builtBasePath || builtBasePath === basePath) return basePath;
+  // Next.js also writes the base path regex-escaped, as `\/a\/…` in route
+  // matchers and `\\/a\\/…` inside JSON manifests; swap every form.
+  const escapings = [
+    (path: string) => path.replaceAll("/", String.raw`\\/`),
+    (path: string) => path.replaceAll("/", String.raw`\/`),
+    (path: string) => path,
+  ];
+  const swaps = escapings.map((escape) => ({
+    from: Buffer.from(escape(builtBasePath)),
+    to: Buffer.from(escape(basePath)),
+  }));
+  let rewritten = 0;
+  try {
+    const files = [
+      join(appRoot, "server.js"),
+      ...listFiles(join(appRoot, ".next")),
+    ];
+    for (const file of files) {
+      const content = readFileSync(file);
+      if (!swaps.some(({ from }) => content.includes(from))) continue;
+      writeFileSync(
+        file,
+        swaps.reduce(
+          (text, { from, to }) => replaceAll(text, from, to),
+          content
+        )
+      );
+      rewritten += 1;
+    }
+  } catch (error) {
+    console.error("[vm] could not apply the base path", error);
+    return builtBasePath;
+  }
+  console.info(
+    `[vm] serving under ${basePath || "/"} (${String(rewritten)} files)`
+  );
+  return basePath;
+}
+
+function listFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return listFiles(path);
+    return entry.isFile() ? [path] : [];
+  });
+}
+
+function replaceAll(content: Buffer, from: Buffer, to: Buffer) {
+  const parts: Buffer[] = [];
+  let start = 0;
+  for (
+    let index = content.indexOf(from);
+    index !== -1;
+    index = content.indexOf(from, start)
+  ) {
+    parts.push(content.subarray(start, index), to);
+    start = index + from.length;
+  }
+  parts.push(content.subarray(start));
+  return Buffer.concat(parts);
+}
+
+/** Holds PORT and puts the prefix Maritime strips back before Next sees it. */
+function restorePrefix(prefix: string) {
+  const server = createServer((incoming, outgoing) => {
+    const path = incoming.url ?? "/";
+    const prefixed =
+      path === prefix ||
+      path.startsWith(`${prefix}/`) ||
+      path.startsWith(`${prefix}?`);
+    const upstream = forward(
+      {
+        headers: incoming.headers,
+        host: "127.0.0.1",
+        method: incoming.method,
+        path: prefixed ? path : `${prefix}${path}`,
+        port: nextInternalPort,
+      },
+      (response) => {
+        outgoing.writeHead(
+          response.statusCode ?? 502,
+          response.statusMessage,
+          response.headers
+        );
+        response.pipe(outgoing);
+      }
+    );
+    upstream.once("error", () => {
+      if (!outgoing.headersSent) outgoing.writeHead(502);
+      outgoing.end();
+    });
+    incoming.pipe(upstream);
+  });
+  server.once("error", (error) => {
+    console.error("[vm] prefix proxy failed", error);
+    for (const child of children) child.kill("SIGTERM");
+    stopPostgres();
+    process.exit(1);
+  });
+  server.listen(Number(port), "0.0.0.0");
 }
 
 /** Either server exiting takes the VM down so the host restarts it whole. */

@@ -14,6 +14,7 @@ import {
 } from "@web/components/ai-elements/prompt-input";
 import { chatTitle, messageContent } from "../../_lib/message-input";
 import { api } from "@web/trpc/client";
+import { publicEnv } from "@shared/environment/public/env";
 
 export function NewChat() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export function NewChat() {
   const isSubmitting = useRef(false);
   const navigationStarted = useRef(false);
   const agent = useEveAgent({
+    host: publicEnv.NEXT_PUBLIC_BASE_PATH,
     onSessionChange(session) {
       if (session === undefined || navigationStarted.current) return;
       navigationStarted.current = true;

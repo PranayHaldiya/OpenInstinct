@@ -26,9 +26,10 @@ import {
   readOlderSessionHistory,
   type SessionHistoryPage,
 } from "../_lib/session-history";
+import { publicEnv } from "@shared/environment/public/env";
 import type { ChatAgent } from "./chat-agent";
 
-const client = new Client({ host: "" });
+const client = new Client({ host: publicEnv.NEXT_PUBLIC_BASE_PATH });
 const messageReducer = defaultMessageReducer();
 
 export function useSessionAgent(sessionId: string): ChatAgent {

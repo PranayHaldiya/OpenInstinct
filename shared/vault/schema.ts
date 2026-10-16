@@ -358,10 +358,10 @@ export function parseVaultSetupSearchParams(
 }
 
 export function createVaultSetupUrl(
-  baseUrl: string,
+  vaultPageUrl: URL,
   request: VaultSetupRequest
 ) {
-  const url = new URL("/vault", baseUrl);
+  const url = new URL(vaultPageUrl);
   url.searchParams.set("setup", request.target);
   url.searchParams.set("kind", request.kind);
   if (request.kind === "login") {

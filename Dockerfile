@@ -2,7 +2,13 @@
 # runs the shared Telegram router and job index. Postgres runs inside the VM
 # with its data on the persistent /data volume.
 
+# Maritime serves each VM under /a/<agentId>, but one image serves every VM.
+# Next.js builds under this placeholder base path, the same length as the
+# real prefix, and scripts/vm/start.ts swaps in the VM's own at boot.
+ARG BUILT_BASE_PATH=/a/0ib45e00-path-4000-8000-placeholder0
+
 FROM node:24-bookworm-slim AS build
+ARG BUILT_BASE_PATH
 ENV NEXT_TELEMETRY_DISABLED=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /app
@@ -16,7 +22,8 @@ ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
   BETTER_AUTH_URL=http://localhost:3000 \
   BETTER_AUTH_SECRET=build-only-secret-build-only-secret-0000 \
   SECRET_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
-  NEXT_OUTPUT_STANDALONE=1
+  NEXT_OUTPUT_STANDALONE=1 \
+  NEXT_PUBLIC_BASE_PATH=${BUILT_BASE_PATH}
 RUN pnpm exec eve build && pnpm exec next build
 # The launcher's own dependencies, outside Next's traced output.
 RUN mkdir -p /launcher && cd /launcher \
@@ -24,10 +31,12 @@ RUN mkdir -p /launcher && cd /launcher \
   && npm install --omit=dev drizzle-orm@0.45.2 pg@8.23.0 zod@4.5.4
 
 FROM node:24-bookworm-slim
+ARG BUILT_BASE_PATH
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates postgresql \
   && rm -rf /var/lib/apt/lists/*
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 \
+  OI_BUILT_BASE_PATH=${BUILT_BASE_PATH}
 WORKDIR /app
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { isE164PhoneNumber } from "@shared/identity/phone-number";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationUrl } from "@shared/environment/origin";
 
 const contactPath = "/contacts/openinstinct.vcf";
 const lifetimeSeconds = 7 * 24 * 60 * 60;
@@ -9,7 +9,7 @@ export function openInstinctContactUrl(phoneNumber: string, secret: string) {
   if (!isE164PhoneNumber(phoneNumber)) {
     throw new Error("OpenInstinct's contact number must use E.164 format.");
   }
-  const url = new URL(contactPath, applicationOrigin());
+  const url = applicationUrl(contactPath);
   if (url.protocol !== "https:") {
     throw new Error("Contact sharing requires a public HTTPS application URL.");
   }
@@ -43,12 +43,14 @@ export function verifyOpenInstinctContactUrl(url: URL, secret: string) {
     : undefined;
 }
 
+// Signs the app-relative path: behind a path prefix the signed URL carries
+// the prefix, while the route handler sees the path without it.
 function signature(url: URL, secret: string) {
   return createHmac("sha256", secret)
     .update(
       JSON.stringify([
         "openinstinct-contact-v1",
-        url.pathname,
+        contactPath,
         url.searchParams.get("phone"),
         url.searchParams.get("expires"),
       ])

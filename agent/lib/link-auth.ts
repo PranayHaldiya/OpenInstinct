@@ -10,7 +10,7 @@ import {
   LinkConnectionRequiredError,
   startLinkAuthorization,
 } from "@db/services/auth/link";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationUrl } from "@shared/environment/origin";
 import { scopeFromPrincipal } from "@agent/lib/principal-scope";
 
 function accountUserId(principal: ConnectionPrincipal) {
@@ -49,7 +49,7 @@ export const linkAuth = defineInteractiveAuthorization<{ attempt: string }>({
     );
     return {
       challenge: {
-        url: `${applicationOrigin()}/api/link?attempt=${attempt}`,
+        url: applicationUrl(`/api/link?attempt=${attempt}`).href,
         instructions: "Connect your Link wallet to continue.",
         expiresAt,
       },

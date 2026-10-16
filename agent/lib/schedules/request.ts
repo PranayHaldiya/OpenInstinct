@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { z } from "zod";
 import { env } from "@shared/environment";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationBaseUrl } from "@shared/environment/origin";
 
 const eveDevServerSchema = z.object({
   appRoot: z.string(),
@@ -27,8 +27,8 @@ export async function postScheduledRunRoute<
     headers.set("authorization", `Bearer ${token}`);
     headers.set("x-vercel-trusted-oidc-idp-token", token);
   }
-  const origin = await scheduledRunOrigin();
-  return fetch(new URL(route, origin), {
+  const base = await scheduledRunBaseUrl();
+  return fetch(new URL(`${base}${route}`), {
     body: JSON.stringify(body),
     headers,
     method: "POST",
@@ -36,7 +36,7 @@ export async function postScheduledRunRoute<
   });
 }
 
-async function scheduledRunOrigin() {
+async function scheduledRunBaseUrl() {
   if (env.VERCEL_ENV && env.VERCEL_URL) {
     return `https://${env.VERCEL_URL}`;
   }
@@ -52,7 +52,7 @@ async function scheduledRunOrigin() {
       // Standalone development does not create the Next.js server registry.
     }
   }
-  return applicationOrigin();
+  return applicationBaseUrl();
 }
 
 export async function postScheduledReport(runId: string) {

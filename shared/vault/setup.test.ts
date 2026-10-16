@@ -19,13 +19,16 @@ describe("vault setup", () => {
     ).toBe(false);
 
     const url = new URL(
-      createVaultSetupUrl("https://assistant.example.com", {
-        identifierType: "email",
-        kind: "login",
-        label: "Personal login",
-        origin: "https://auth.uber.com",
-        target: "vault",
-      })
+      createVaultSetupUrl(
+        new URL("https://assistant.example.com/a/agent/vault"),
+        {
+          identifierType: "email",
+          kind: "login",
+          label: "Personal login",
+          origin: "https://auth.uber.com",
+          target: "vault",
+        }
+      )
     );
 
     expect(

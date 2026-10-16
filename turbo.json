@@ -9,6 +9,7 @@
         "DATABASE_URL",
         "EVE_NEXT_*",
         "NEXT_OUTPUT_STANDALONE",
+        "NEXT_PUBLIC_BASE_PATH",
         "*_CONNECTOR_UID",
         "KERNEL_*",
         "LINQ_*",

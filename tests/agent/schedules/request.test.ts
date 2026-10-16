@@ -25,7 +25,7 @@ vi.mock("node:fs/promises", () => ({ readFile: mocks.readFile }));
 vi.mock("@vercel/oidc", () => ({ getVercelOidcToken: mocks.getToken }));
 vi.mock("@shared/environment", () => ({ env: mocks.env }));
 vi.mock("@shared/environment/origin", () => ({
-  applicationOrigin: () => "https://example.com",
+  applicationBaseUrl: () => "https://example.com",
 }));
 
 import { postScheduledRunRoute } from "@agent/lib/schedules/request";

@@ -19,11 +19,15 @@ describe("application origin", () => {
   it("uses an explicit origin outside Vercel", async () => {
     vi.stubEnv("BETTER_AUTH_URL", "https://assistant.example/path");
 
-    const { applicationOrigin, betterAuthBaseURL } =
+    const { applicationOrigin, applicationUrl, betterAuthBaseURL } =
       await import("@shared/environment/origin");
 
     expect(applicationOrigin()).toBe("https://assistant.example");
-    expect(betterAuthBaseURL()).toBe("https://assistant.example");
+    // A path prefix, such as a Maritime VM's /a/<id>, carries into app URLs.
+    expect(applicationUrl("/vault?import=chrome").href).toBe(
+      "https://assistant.example/path/vault?import=chrome"
+    );
+    expect(betterAuthBaseURL()).toBe("https://assistant.example/path/api/auth");
   });
 
   it("derives the production origin and preview allowlist from Vercel", async () => {

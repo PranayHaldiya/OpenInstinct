@@ -7,7 +7,7 @@ import {
   linkAuthorizationCallback,
   linkConfigured,
 } from "@db/services/auth/link";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationOrigin, applicationUrl } from "@shared/environment/origin";
 
 const inputSchema = z.object({
   operation: z.enum(["connect", "disconnect"]),
@@ -99,7 +99,7 @@ async function connectLink(
   try {
     const callbackURL = attempt
       ? await linkAuthorizationCallback(userId, attempt)
-      : new URL("/link", applicationOrigin()).href;
+      : applicationUrl("/link").href;
     const errorCallback = new URL(callbackURL);
     errorCallback.searchParams.set("error", "authorization_failed");
     const auth = await getAuth();
@@ -122,7 +122,7 @@ async function connectLink(
 }
 
 function connectionFailed(attempt?: string, error = "connection_failed") {
-  const destination = new URL("/link", applicationOrigin());
+  const destination = applicationUrl("/link");
   destination.searchParams.set("error", error);
   if (attempt) destination.searchParams.set("attempt", attempt);
   return new Response(null, {

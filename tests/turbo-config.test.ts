@@ -41,10 +41,11 @@ describe("Turbo configuration", () => {
         ...applicationEnvironment,
         "EVE_NEXT_*",
         "NEXT_OUTPUT_STANDALONE",
+        "NEXT_PUBLIC_BASE_PATH",
       ])
     );
     expect(turbo.tasks["build:app"].env).toHaveLength(
-      applicationEnvironment.length + 2
+      applicationEnvironment.length + 3
     );
     expect(turbo.tasks["build:vercel"].env).toEqual(applicationEnvironment);
     expect(turbo.tasks["dev:app"].passThroughEnv).toEqual(runtimeEnvironment);

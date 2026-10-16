@@ -1,7 +1,7 @@
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
 import { resolveModeValue } from "@agent/lib/mode";
-import { applicationOrigin } from "@shared/environment/origin";
+import { applicationUrl } from "@shared/environment/origin";
 import {
   createVaultSetupUrl,
   vaultSetupRequestSchema,
@@ -15,7 +15,7 @@ export const requestVaultImport = defineTool({
     return {
       message:
         "Open this page in your Local Vault Assistant deployment. It explains how to export from Chrome and opens the secure importer directly.",
-      url: new URL("/vault?import=chrome", applicationOrigin()).toString(),
+      url: applicationUrl("/vault?import=chrome").toString(),
     };
   },
 });
@@ -28,7 +28,7 @@ export const requestVaultSetup = defineTool({
     return {
       message:
         "Open this page in your Local Vault Assistant deployment and complete the form. Do not send the secret in chat.",
-      url: createVaultSetupUrl(applicationOrigin(), request),
+      url: createVaultSetupUrl(applicationUrl("/vault"), request),
     };
   },
 });

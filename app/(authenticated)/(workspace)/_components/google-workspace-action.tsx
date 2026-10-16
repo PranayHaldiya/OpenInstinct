@@ -2,6 +2,7 @@
 
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
+import { withBasePath } from "@shared/environment/public/env";
 import { api } from "@web/trpc/client";
 
 export function GoogleWorkspaceAction({
@@ -11,7 +12,7 @@ export function GoogleWorkspaceAction({
 }) {
   const update = api.googleWorkspace.update.useMutation({
     onError: () => {
-      window.location.assign("/?google=unavailable");
+      window.location.assign(withBasePath("/?google=unavailable"));
     },
     onSuccess: ({ redirectTo }) => {
       window.location.assign(redirectTo);

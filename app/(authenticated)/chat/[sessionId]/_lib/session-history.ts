@@ -1,10 +1,11 @@
 import { Client, type MessageStreamEvent } from "eve/client";
 import { z } from "zod";
+import { publicEnv, withBasePath } from "@shared/environment/public/env";
 
 const eventsPerRead = 128;
 const messagesPerPage = 4;
 const tailIndexHeader = "x-eve-stream-tail-index";
-const client = new Client({ host: "" });
+const client = new Client({ host: publicEnv.NEXT_PUBLIC_BASE_PATH });
 const messageStreamEventSchema = z.custom<MessageStreamEvent>(
   (value) =>
     z
@@ -132,7 +133,9 @@ function sessionStreamUrl(
     startIndex: options.startIndex.toString(),
   });
   if (options.includeTailIndex) search.set("includeTailIndex", "1");
-  return `/eve/v1/session/${encodeURIComponent(sessionId)}/stream?${search}`;
+  return withBasePath(
+    `/eve/v1/session/${encodeURIComponent(sessionId)}/stream?${search}`
+  );
 }
 
 function readTailIndex(response: Response) {
