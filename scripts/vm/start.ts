@@ -202,7 +202,13 @@ function restorePrefix(prefix: string) {
         headers: incoming.headers,
         host: "127.0.0.1",
         method: incoming.method,
-        path: prefixed ? path : `${prefix}${path}`,
+        // Next serves the base path itself without a trailing slash and
+        // redirects `${prefix}/` there, so the bare root maps to the prefix.
+        path: prefixed
+          ? path
+          : path === "/" || path.startsWith("/?")
+            ? `${prefix}${path.slice(1)}`
+            : `${prefix}${path}`,
         port: nextInternalPort,
       },
       (response) => {
