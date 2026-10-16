@@ -13,6 +13,9 @@ export const jobSources = [
   "wwr",
 ] as const;
 
+/** When the shared job ingest runs (UTC). Hosts that sleep wake for it. */
+export const jobsIngestCron = "17 */4 * * *";
+
 export const jobBoardProviders = ["ashby", "greenhouse", "lever"] as const;
 
 /**
