@@ -98,38 +98,67 @@ export type JobScreen = z.infer<typeof jobScreenSchema>;
 
 const companyNameSchema = z.string().trim().min(1).max(120);
 
+const keywordsSchema = z.array(z.string().trim().min(1).max(40));
+
+// Each preference without its default, so a partial update can leave fields
+// out: Zod 4's `.partial()` still fills defaults for missing keys, which
+// would overwrite saved preferences with them.
+const preferenceFields = {
+  /** Where the user lives; null until they say. */
+  country: countryCodeSchema.nullable(),
+  workplaces: z.array(z.enum(workplaces).exclude(["unclear"])).min(1),
+  /** Keep postings that don't say how or where the role is worked. */
+  includeUnclearLocation: z.boolean(),
+  /** Languages the user works in; postings needing another are skipped. */
+  languages: z.array(languageCodeSchema).min(1).max(10),
+  excludeEmployerTypes: z.array(z.enum(employerTypes)),
+  maxYears: z.number().int().min(0).max(30),
+  stretchYears: z.number().int().min(0).max(30),
+  excludeSeniorities: z.array(z.enum(seniorities)),
+  roleFamilies: z.array(z.enum(roleFamilies)).min(1),
+  stackKeywords: keywordsSchema.max(60),
+  titleKeywords: keywordsSchema.max(40),
+  excludeTitleKeywords: keywordsSchema.max(40),
+  excludeCompanies: z.array(companyNameSchema).max(1000),
+  maxAgeDays: z.number().int().min(1).max(365),
+  digestSize: z.number().int().min(1).max(20),
+};
+
 /** What one user is looking for. Matching is per user; screening is shared. */
 export const jobPreferencesSchema = z.strictObject({
-  /** Where the user lives; null until they say. */
-  country: countryCodeSchema.nullable().default(null),
-  workplaces: z
-    .array(z.enum(workplaces).exclude(["unclear"]))
-    .min(1)
-    .default(["remote"]),
-  /** Keep postings that don't say how or where the role is worked. */
-  includeUnclearLocation: z.boolean().default(false),
-  /** Languages the user works in; postings needing another are skipped. */
-  languages: z.array(languageCodeSchema).min(1).max(10).default(["en"]),
-  excludeEmployerTypes: z.array(z.enum(employerTypes)).default(["agency"]),
-  maxYears: z.number().int().min(0).max(30).default(3),
-  stretchYears: z.number().int().min(0).max(30).default(4),
-  excludeSeniorities: z
-    .array(z.enum(seniorities))
-    .default(["senior", "staff_plus"]),
-  roleFamilies: z
-    .array(z.enum(roleFamilies))
-    .min(1)
-    .default(["product", "ai", "infrastructure", "data_ml", "mobile"]),
-  stackKeywords: z.array(z.string().trim().min(1).max(40)).max(60).default([]),
-  titleKeywords: z.array(z.string().trim().min(1).max(40)).max(40).default([]),
-  excludeTitleKeywords: z
-    .array(z.string().trim().min(1).max(40))
-    .max(40)
-    .default([]),
-  excludeCompanies: z.array(companyNameSchema).max(1000).default([]),
-  maxAgeDays: z.number().int().min(1).max(365).default(45),
-  digestSize: z.number().int().min(1).max(20).default(5),
+  country: preferenceFields.country.default(null),
+  workplaces: preferenceFields.workplaces.default(["remote"]),
+  includeUnclearLocation:
+    preferenceFields.includeUnclearLocation.default(false),
+  languages: preferenceFields.languages.default(["en"]),
+  excludeEmployerTypes: preferenceFields.excludeEmployerTypes.default([
+    "agency",
+  ]),
+  maxYears: preferenceFields.maxYears.default(3),
+  stretchYears: preferenceFields.stretchYears.default(4),
+  excludeSeniorities: preferenceFields.excludeSeniorities.default([
+    "senior",
+    "staff_plus",
+  ]),
+  roleFamilies: preferenceFields.roleFamilies.default([
+    "product",
+    "ai",
+    "infrastructure",
+    "data_ml",
+    "mobile",
+  ]),
+  stackKeywords: preferenceFields.stackKeywords.default([]),
+  titleKeywords: preferenceFields.titleKeywords.default([]),
+  excludeTitleKeywords: preferenceFields.excludeTitleKeywords.default([]),
+  excludeCompanies: preferenceFields.excludeCompanies.default([]),
+  maxAgeDays: preferenceFields.maxAgeDays.default(45),
+  digestSize: preferenceFields.digestSize.default(5),
 });
+
+/** A partial preferences update: fields left out stay as saved. */
+export const jobPreferencesPatchSchema = z
+  .strictObject(preferenceFields)
+  .partial();
 
 export type JobPreferences = z.infer<typeof jobPreferencesSchema>;
 

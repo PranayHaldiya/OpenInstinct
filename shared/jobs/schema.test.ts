@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { companyKey, jobPreferencesSchema } from "./schema";
+import {
+  companyKey,
+  jobPreferencesPatchSchema,
+  jobPreferencesSchema,
+} from "./schema";
 
 describe("companyKey", () => {
   it.each([
@@ -22,6 +26,12 @@ describe("jobPreferencesSchema", () => {
       country: null,
       excludeEmployerTypes: ["agency"],
       workplaces: ["remote"],
+    });
+  });
+
+  it("leaves fields out of a partial update instead of filling defaults", () => {
+    expect(jobPreferencesPatchSchema.parse({ languages: ["en"] })).toEqual({
+      languages: ["en"],
     });
   });
 });

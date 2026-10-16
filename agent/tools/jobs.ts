@@ -31,6 +31,7 @@ import type { AccessScope } from "@shared/identity/access-scope";
 import {
   companyKey,
   jobApplicationStatuses,
+  jobPreferencesPatchSchema,
   jobPreferencesSchema,
   type JobPreferences,
 } from "@shared/jobs/schema";
@@ -196,9 +197,8 @@ export const listJobLog = defineTool({
   },
 });
 
-const preferencesPatchSchema = jobPreferencesSchema
+const preferencesPatchSchema = jobPreferencesPatchSchema
   .omit({ excludeCompanies: true })
-  .partial()
   .extend({
     excludeCompaniesAdd: z
       .array(z.string().trim().min(1).max(120))
