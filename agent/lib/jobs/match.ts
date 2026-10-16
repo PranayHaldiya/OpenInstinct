@@ -1,5 +1,10 @@
 import type { jobPostings } from "@db/schema";
-import { companyKey, type JobPreferences } from "@shared/jobs/schema";
+import {
+  companyKey,
+  type JobPreferences,
+  type JobScreen,
+} from "@shared/jobs/schema";
+import { locationCodesFor } from "./regions";
 
 type Posting = typeof jobPostings.$inferSelect;
 
@@ -21,7 +26,6 @@ export interface JobMatch {
 }
 
 const dayMs = 86_400_000;
-// Pay problems no ranking can make up for.
 // Postings straight from the employer beat aggregator reposts, which skew
 // toward agencies and stale listings.
 const directSources = new Set<Posting["source"]>([
@@ -31,7 +35,77 @@ const directSources = new Set<Posting["source"]>([
   "hn",
   "yc",
 ]);
+// Pay problems no ranking can make up for.
 const disqualifyingFlag = /\bunpaid\b|equity[- ]only|commission[- ]only/i;
+
+// Stacks a title can ask for, each with the keywords that count as knowing it.
+// A title asking only for stacks the user doesn't list ranks lower.
+const titleStacks: readonly [string, RegExp, readonly string[]][] = [
+  [
+    "php",
+    /\b(php|laravel|wordpress|symfony|drupal|magento)\b/i,
+    ["php", "laravel", "wordpress"],
+  ],
+  ["java", /\b(java|spring)\b(?!script)/i, ["java", "spring", "kotlin"]],
+  [".net", /\.net\b|\bc#|\bdotnet\b/i, [".net", "c#", "dotnet"]],
+  ["ruby", /\b(ruby|rails)\b/i, ["ruby", "rails"]],
+  [
+    "python",
+    /\b(python|django|flask|fastapi)\b/i,
+    ["python", "django", "fastapi", "flask"],
+  ],
+  ["go", /\bgolang\b|\bGo\b(?!-)/, ["go", "golang"]],
+  ["rust", /\brust\b/i, ["rust"]],
+  ["c++", /\bc\+\+/i, ["c++"]],
+  ["elixir", /\belixir\b/i, ["elixir"]],
+  [
+    "node",
+    /\b(node(\.js)?|nestjs|express|typescript|javascript)\b/i,
+    ["node", "typescript", "javascript", "nestjs"],
+  ],
+  ["react", /\b(react|next\.?js)\b/i, ["react", "next.js", "nextjs"]],
+  ["angular", /\bangular\b/i, ["angular"]],
+  ["vue", /\bvue(\.js)?\b/i, ["vue"]],
+];
+
+/** Stacks the title names when none of them is among the user's keywords. */
+function unfamiliarTitleStacks(
+  title: string,
+  stackKeywords: readonly string[]
+) {
+  if (stackKeywords.length === 0) return [];
+  const known = new Set(stackKeywords.map((term) => term.toLowerCase()));
+  const named = titleStacks.filter(([, pattern]) => pattern.test(title));
+  return named.some(([, , keys]) => keys.some((key) => known.has(key)))
+    ? []
+    : named.map(([name]) => name);
+}
+
+type LocationFit = "country" | "region" | "worldwide" | "unstated";
+
+/** How a posting's workplace and regions fit where the user lives, if at all. */
+export function fitLocation(
+  screen: JobScreen,
+  preferences: Pick<
+    JobPreferences,
+    "country" | "includeUnclearLocation" | "workplaces"
+  >
+): LocationFit | null {
+  if (screen.workplace === "unclear") {
+    return preferences.includeUnclearLocation ? "unstated" : null;
+  }
+  if (!preferences.workplaces.includes(screen.workplace)) return null;
+  if (screen.regions.length === 0) {
+    return preferences.includeUnclearLocation ? "unstated" : null;
+  }
+  const { country } = preferences;
+  if (country && screen.regions.includes(country)) return "country";
+  // An office region or "worldwide" office says nothing about where the user is.
+  if (screen.workplace !== "remote") return null;
+  if (screen.regions.includes("worldwide")) return "worldwide";
+  const open = new Set(locationCodesFor(country));
+  return screen.regions.some((code) => open.has(code)) ? "region" : null;
+}
 
 // A term matches at the start of a word, so "agent" finds "agentic" but
 // "ios" doesn't find "studios".
@@ -61,7 +135,11 @@ export function matchJobs(
   for (const posting of postings) {
     const screen = posting.screen;
     if (!screen || posting.closedAt) continue;
-    if (!preferences.remoteScopes.includes(screen.remote)) continue;
+    const locationFit = fitLocation(screen, preferences);
+    if (!locationFit) continue;
+    if (preferences.excludeEmployerTypes.includes(screen.employerType)) {
+      continue;
+    }
     if (preferences.excludeSeniorities.includes(screen.seniority)) continue;
     if (!preferences.roleFamilies.includes(screen.roleFamily)) continue;
     if (
@@ -102,8 +180,16 @@ export function matchJobs(
     if (stackHits.length > 0) {
       reasons.push(`stack: ${stackHits.slice(0, 6).join(", ")}`);
     }
-    if (screen.remote === "anywhere" || screen.remote === "india") score += 2;
-    if (screen.remote === "apac") score += 1;
+    if (locationFit === "country" || locationFit === "worldwide") score += 2;
+    if (locationFit === "region") score += 1;
+    const unfamiliar = unfamiliarTitleStacks(
+      posting.title,
+      preferences.stackKeywords
+    );
+    if (unfamiliar.length > 0) {
+      score -= 3;
+      reasons.push(`title asks for ${unfamiliar.join(", ")}`);
+    }
     if (screen.method === "model") score += 1;
     if (directSources.has(posting.source)) score += 2;
     const ageDays =

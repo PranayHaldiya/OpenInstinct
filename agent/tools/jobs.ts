@@ -45,7 +45,7 @@ function isoDate(date: Date | null) {
 
 export const findJobs = defineTool({
   description:
-    "Find open job postings that match the user's saved job preferences, ranked best first. Postings come from Ashby, Greenhouse and Lever boards, Hacker News Who's Hiring, RemoteOK, Himalayas and YC, and are already screened for remote scope, seniority, years asked and red flags. Companies the user applied to, messaged, skipped or excluded never appear, and postings already shown are skipped unless includeShown is true. Returned postings are recorded as shown. Use query to narrow by keywords that must all appear. Each result's id works with jobs-log.",
+    "Find open job postings that match the user's saved job preferences, ranked best first. Postings come from Ashby, Greenhouse and Lever boards, Hacker News Who's Hiring, RemoteOK, Himalayas and YC, and are already screened for workplace and regions, employer type, seniority, years asked and red flags. Only postings the user can work from their saved country appear; with no country saved, only remote worldwide ones do, and countryMissing is true. Companies the user applied to, messaged, skipped or excluded never appear, and postings already shown are skipped unless includeShown is true. Returned postings are recorded as shown. Use query to narrow by keywords that must all appear. Each result's id works with jobs-log.",
   inputSchema: z.object({
     includeShown: z.boolean().default(false),
     limit: z.number().int().min(1).max(20).optional(),
@@ -56,10 +56,10 @@ export const findJobs = defineTool({
     const now = new Date();
     const preferences = await getJobPreferences(scope);
     const [postings, loggedCompanies, recommended] = await Promise.all([
-      loadCandidatePostings({
-        remoteScopes: preferences.remoteScopes,
-        since: new Date(now.getTime() - preferences.maxAgeDays * dayMs),
-      }),
+      loadCandidatePostings(
+        preferences,
+        new Date(now.getTime() - preferences.maxAgeDays * dayMs)
+      ),
       listLoggedCompanyKeys(scope),
       listRecommendedPostingIds(scope),
     ]);
@@ -76,6 +76,7 @@ export const findJobs = defineTool({
       picked.map((match) => match.posting.id)
     );
     return {
+      countryMissing: preferences.country === null,
       matchedTotal: matches.length,
       postings: picked.map(({ posting, reasons, stretch }) => ({
         applyUrl: posting.applyUrl,
@@ -86,8 +87,10 @@ export const findJobs = defineTool({
         pay: posting.pay,
         postedOn: isoDate(posting.postedAt ?? posting.firstSeenAt),
         reasons,
-        remote: posting.screen?.remote,
-        remoteEvidence: posting.screen?.remoteEvidence,
+        employerType: posting.screen?.employerType,
+        locationEvidence: posting.screen?.locationEvidence,
+        openFrom: posting.screen?.regions,
+        workplace: posting.screen?.workplace,
         source: posting.source,
         stretch,
         summary: posting.screen?.summary ?? null,
@@ -184,7 +187,7 @@ const preferencesPatchSchema = jobPreferencesSchema
 
 export const jobPreferencesTool = defineTool({
   description:
-    "Read or change the user's job search preferences: acceptable remote scopes (anywhere, india, apac, other_region, onsite, unclear), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
+    "Read or change the user's job search preferences: country they live in (ISO 3166-1 alpha-2 code such as IN, US or GB), workplaces they accept (remote, hybrid, onsite; hybrid and onsite match offices anywhere in their country), whether to include postings that don't say how or where they're worked, employer types to exclude (agency: recruiters hiring for a client; services: consultancies building for clients; product), role families to keep (product, ai, infrastructure, data_ml, mobile, qa, security, support, other), maxYears and stretchYears of experience asked, seniorities to exclude, stack and title keywords that rank postings higher, title keywords to exclude, companies to exclude, how many days old a posting may be, and the daily digest size. Call with no fields to read. Save only what the user states; lists replace the saved list except excludeCompaniesAdd and excludeCompaniesRemove, which edit the exclude list.",
   inputSchema: preferencesPatchSchema,
   async execute(
     { excludeCompaniesAdd, excludeCompaniesRemove, ...patch },

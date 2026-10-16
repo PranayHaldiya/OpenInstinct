@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyEmployer,
   classifyLocation,
   classifyRoleFamily,
   classifySeniority,
@@ -10,24 +11,48 @@ import {
 
 describe("classifyLocation", () => {
   it.each([
-    ["Remote - Worldwide", null, "anywhere"],
-    ["Anywhere", "remote", "anywhere"],
-    ["Remote, India", null, "india"],
-    ["Bengaluru", "remote", "india"],
-    ["Bengaluru, Karnataka", "OnSite", "onsite"],
-    ["Hybrid - Mumbai", null, "onsite"],
-    ["Remote (APAC)", null, "apac"],
-    ["Remote - US", null, "other_region"],
-    ["Remote, Europe; Remote, Canada", null, "other_region"],
-    ["Remote", null, "unclear"],
-    ["San Francisco, CA", null, "onsite"],
-    ["Not stated", null, "unclear"],
-  ])("reads %s (%s) as %s", (location, workplaceType, expected) => {
-    expect(classifyLocation(location, workplaceType).remote).toBe(expected);
-  });
+    ["Remote - Worldwide", null, "remote", ["worldwide"]],
+    ["Anywhere", "remote", "remote", ["worldwide"]],
+    ["Remote, India", null, "remote", ["IN"]],
+    ["Bengaluru", "remote", "remote", ["IN"]],
+    ["Bengaluru, Karnataka", "OnSite", "onsite", ["IN"]],
+    ["Hybrid - Mumbai", null, "hybrid", ["IN"]],
+    ["Remote (APAC)", null, "remote", ["apac"]],
+    ["Remote - US", null, "remote", ["US"]],
+    ["Remote, Europe; Remote, Canada", null, "remote", ["europe", "CA"]],
+    ["Remote - Anywhere in the US", null, "remote", ["US"]],
+    ["Remote", null, "remote", []],
+    ["San Francisco, CA", null, "onsite", ["US"]],
+    ["Not stated", null, "unclear", []],
+  ])(
+    "reads %s (%s) as %s in %j",
+    (location, workplaceType, workplace, regions) => {
+      const read = classifyLocation(location, workplaceType);
+      expect(read.workplace).toBe(workplace);
+      expect(read.regions).toEqual(regions);
+    }
+  );
 
-  it("prefers India over a region named alongside it", () => {
-    expect(classifyLocation("Remote - US or India", null).remote).toBe("india");
+  it("keeps every country a posting names", () => {
+    expect(classifyLocation("Remote - US or India", null).regions).toEqual([
+      "IN",
+      "US",
+    ]);
+  });
+});
+
+describe("classifyEmployer", () => {
+  it.each([
+    ["Acme", "We build payroll software.", "unclear"],
+    ["Acme", "We are hiring on behalf of our client, a fintech.", "agency"],
+    ["Bright Staffing Group", "A great role.", "agency"],
+    [
+      "VENZA",
+      "Our company is managing the recruitment process internally and is not engaging with staffing agencies.",
+      "unclear",
+    ],
+  ])("reads %s as %s", (company, description, expected) => {
+    expect(classifyEmployer(company, description)).toBe(expected);
   });
 });
 
@@ -58,6 +83,9 @@ describe("classifyRoleFamily", () => {
     ["People Systems Engineer", "support"],
     ["IT Engineer Generalist", "support"],
     ["Security Engineer", "security"],
+    ["Software Engineer, Customer Accounts", "product"],
+    ["Computer Vision Engineer - Body Sensor Networks", "data_ml"],
+    ["Rust Systems Engineer", "infrastructure"],
   ])("reads %s as %s", (title, expected) => {
     expect(classifyRoleFamily(title)).toBe(expected);
   });
@@ -84,6 +112,7 @@ describe("extractMinYears", () => {
 describe("screenWithRules", () => {
   it("collects stack terms and red flags", () => {
     const screen = screenWithRules({
+      company: "Acme",
       description:
         "Build AI agents in TypeScript and Next.js. This role is equity-only for now.",
       location: "Remote - Worldwide",
@@ -94,26 +123,33 @@ describe("screenWithRules", () => {
       expect.arrayContaining(["typescript", "next.js", "agents"])
     );
     expect(screen.redFlags).toEqual(["equity-only or unpaid"]);
-    expect(needsModelScreen(screen)).toBe(true);
+    expect(needsModelScreen(screen, ["IN"])).toBe(true);
   });
 
-  it("does not spend a model read on roles that can't fit", () => {
+  it("spends model reads only on remote roles the hub's countries could take", () => {
     const screen = screenWithRules({
+      company: "Acme",
       description: "",
       location: "Remote - US",
       title: "Software Engineer",
       workplaceType: null,
     });
-    expect(needsModelScreen(screen)).toBe(false);
+    expect(needsModelScreen(screen, ["IN"])).toBe(false);
+    expect(needsModelScreen(screen, ["IN", "US"])).toBe(true);
+    expect(needsModelScreen({ ...screen, regions: ["asia"] }, ["IN"])).toBe(
+      true
+    );
+    expect(needsModelScreen({ ...screen, regions: [] }, ["IN"])).toBe(true);
     expect(
-      needsModelScreen({
-        ...screen,
-        remote: "anywhere",
-        seniority: "staff_plus",
-      })
+      needsModelScreen({ ...screen, workplace: "onsite", regions: ["IN"] }, [
+        "IN",
+      ])
     ).toBe(false);
     expect(
-      needsModelScreen({ ...screen, remote: "unclear", seniority: "senior" })
+      needsModelScreen(
+        { ...screen, regions: ["worldwide"], seniority: "staff_plus" },
+        ["IN"]
+      )
     ).toBe(false);
   });
 });

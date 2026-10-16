@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { jobPostings } from "@db/schema";
 import { jobPreferencesSchema, type JobScreen } from "@shared/jobs/schema";
-import { matchJobs } from "../match";
+import { fitLocation, matchJobs } from "../match";
 
 const now = new Date("2026-10-15T00:00:00Z");
 const preferences = jobPreferencesSchema.parse({
+  country: "IN",
   excludeCompanies: ["Blocked Co"],
   excludeTitleKeywords: ["qa", "ios"],
   stackKeywords: ["typescript", "agents"],
@@ -34,9 +35,11 @@ function posting(
     screen: {
       method: "model",
       minYears: null,
+      employerType: "product",
+      locationEvidence: "Remote, worldwide",
       redFlags: [],
-      remote: "anywhere",
-      remoteEvidence: "Remote, worldwide",
+      regions: ["worldwide"],
+      workplace: "remote",
       roleFamily: "product",
       seniority: "unknown",
       stack: [],
@@ -63,7 +66,8 @@ describe("matchJobs", () => {
     const matches = matchJobs(
       [
         posting("ok"),
-        posting("us", { screen: { remote: "other_region" } }),
+        posting("us", { screen: { regions: ["US"] } }),
+        posting("agency", { screen: { employerType: "agency" } }),
         posting("senior", { screen: { seniority: "senior" } }),
         posting("years", { screen: { minYears: 6 } }),
         posting("blocked", { company: "Blocked Co", companyKey: "blocked" }),
@@ -143,5 +147,74 @@ describe("matchJobs", () => {
         (match) => match.posting.id
       )
     ).toEqual(["3"]);
+  });
+
+  it("ranks down titles that ask only for stacks the user doesn't list", () => {
+    const matches = matchJobs(
+      [
+        posting("php", { title: "Full-Stack Developer – PHP / AWS / GCP" }),
+        posting("nest", { title: "Backend Engineer (NestJS / Go)" }),
+        posting("plain"),
+      ],
+      jobPreferencesSchema.parse({ country: "IN", stackKeywords: ["node"] }),
+      context
+    );
+    expect(matches.map((match) => match.posting.id)).toEqual([
+      "nest",
+      "plain",
+      "php",
+    ]);
+    expect(matches[2]?.reasons).toContain("title asks for php");
+  });
+});
+
+describe("fitLocation", () => {
+  const screen = posting("x").screen;
+  if (!screen) throw new Error("fixture has a screen");
+  const india = jobPreferencesSchema.parse({ country: "IN" });
+
+  it.each([
+    [["worldwide"], "remote", "worldwide"],
+    [["IN"], "remote", "country"],
+    [["apac"], "remote", "region"],
+    [["US", "IN"], "remote", "country"],
+    [["US"], "remote", null],
+    [["europe"], "remote", null],
+    [[], "remote", null],
+    [["IN"], "onsite", null],
+  ] as const)(
+    "fits %j %s as %s for someone in India",
+    (regions, workplace, fit) => {
+      expect(
+        fitLocation({ ...screen, regions: [...regions], workplace }, india)
+      ).toBe(fit);
+    }
+  );
+
+  it("matches offices in the user's country when they accept onsite", () => {
+    const onsite = jobPreferencesSchema.parse({
+      country: "IN",
+      workplaces: ["remote", "onsite"],
+    });
+    expect(
+      fitLocation({ ...screen, regions: ["IN"], workplace: "onsite" }, onsite)
+    ).toBe("country");
+    expect(
+      fitLocation({ ...screen, regions: ["US"], workplace: "onsite" }, onsite)
+    ).toBeNull();
+  });
+
+  it("shows only worldwide remote roles until the country is known", () => {
+    const unknown = jobPreferencesSchema.parse({});
+    expect(fitLocation(screen, unknown)).toBe("worldwide");
+    expect(fitLocation({ ...screen, regions: ["IN"] }, unknown)).toBeNull();
+  });
+
+  it("keeps unstated locations only when asked", () => {
+    const unclear = { ...screen, regions: [], workplace: "unclear" as const };
+    expect(fitLocation(unclear, india)).toBeNull();
+    expect(
+      fitLocation(unclear, { ...india, includeUnclearLocation: true })
+    ).toBe("unstated");
   });
 });

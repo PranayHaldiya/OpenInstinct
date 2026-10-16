@@ -1,58 +1,118 @@
 import type { JobScreen } from "@shared/jobs/schema";
+import { locationCodesFor } from "../regions";
 
 interface ScreenInput {
+  readonly company: string;
   readonly description: string;
   readonly location: string;
   readonly title: string;
   readonly workplaceType: string | null;
 }
 
-const indiaPattern =
-  /\b(india|indian|bengaluru|bangalore|mumbai|delhi|ncr|gurgaon|gurugram|noida|hyderabad|pune|chennai|jaipur|kolkata|ahmedabad|kochi|chandigarh|indore)\b/i;
 const remotePattern =
   /\b(remote|anywhere|worldwide|distributed|work from home|wfh|fully[- ]remote)\b/i;
-const anywherePattern =
-  /\b(worldwide|anywhere|global(ly)?|any (country|location)|no (country|location) restriction|anywhere in the world)\b/i;
-const apacPattern = /\b(apac|asia|asia[- ]pacific|south asia)\b/i;
-const regionPattern =
-  /\b(us|usa|u\.s\.?|united states|north america|americas|canada|canadian|europe|european|eu|emea|uk|united kingdom|england|london|latam|latin america|mexico|brazil|argentina|germany|france|spain|portugal|netherlands|poland|ireland|switzerland|sweden|australia|new zealand|singapore|japan|philippines|vietnam|indonesia|israel|est|pst|cet|gmt|[a-z]+, (ca|ny|wa|tx|ma|il|co)\b|san francisco|new york|nyc|seattle|austin|boston|toronto|berlin|paris|amsterdam)\b/i;
+const hybridPattern = /\bhybrid\b/i;
 const onsitePattern =
-  /\b(on[- ]?site|in[- ]office|hybrid|office[- ]based|in person)\b/i;
+  /\b(on[- ]?site|in[- ]office|office[- ]based|in person)\b/i;
 
-/** Reads where a role can be worked from its location fields alone. */
+// Names of places in location fields, mapped to the codes `regions` uses.
+// Country codes in upper case only, so "us" in prose doesn't read as the US.
+const locationTerms: readonly [string, RegExp][] = [
+  [
+    "worldwide",
+    /\b(worldwide|anywhere|global(ly)?|any (country|location)|no (country|location) restriction)\b/i,
+  ],
+  ["apac", /\b(apac|asia[- ]pacific)\b/i],
+  ["asia", /\b(asia|south asia)\b(?![- ]pacific)/i],
+  ["emea", /\bemea\b/i],
+  ["europe", /\b(europe|european|eu|eea)\b|\b(cet|cest)\b/i],
+  ["americas", /\bamericas\b/i],
+  ["north_america", /\bnorth america\b|\b(EST|EDT|PST|PDT|CST|MST|ET|PT)\b/],
+  ["latam", /\b(latam|latin america|south america)\b/i],
+  ["middle_east", /\bmiddle east\b|\bmena\b/i],
+  ["africa", /\bafrica\b/i],
+  ["oceania", /\boceania\b/i],
+  [
+    "IN",
+    /\b(india|indian|bengaluru|bangalore|mumbai|delhi|ncr|gurgaon|gurugram|noida|hyderabad|pune|chennai|jaipur|kolkata|ahmedabad|kochi|chandigarh|indore)\b/i,
+  ],
+  [
+    "US",
+    /\b(usa|u\.s\.a?\.?|united states|san francisco|sf bay|bay area|new york|nyc|seattle|austin|boston|chicago|los angeles|denver|miami|atlanta)\b/i,
+  ],
+  [
+    "US",
+    /\bUS\b|, (AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b/,
+  ],
+  ["CA", /\b(canada|canadian|toronto|vancouver|montreal)\b/i],
+  [
+    "GB",
+    /\b(united kingdom|england|scotland|britain|london|manchester)\b|\bUK\b/i,
+  ],
+  ["DE", /\b(germany|berlin|munich|hamburg)\b/i],
+  ["FR", /\b(france|paris)\b/i],
+  ["ES", /\b(spain|madrid|barcelona)\b/i],
+  ["PT", /\b(portugal|lisbon)\b/i],
+  ["NL", /\b(netherlands|amsterdam)\b/i],
+  ["PL", /\b(poland|warsaw|krakow)\b/i],
+  ["IE", /\b(ireland|dublin)\b/i],
+  ["CH", /\b(switzerland|zurich)\b/i],
+  ["SE", /\b(sweden|stockholm)\b/i],
+  ["AU", /\b(australia|sydney|melbourne)\b/i],
+  ["NZ", /\bnew zealand\b/i],
+  ["SG", /\bsingapore\b/i],
+  ["JP", /\b(japan|tokyo)\b/i],
+  ["PH", /\b(philippines|manila)\b/i],
+  ["VN", /\bvietnam\b/i],
+  ["ID", /\bindonesia\b/i],
+  ["PK", /\bpakistan\b/i],
+  ["IL", /\b(israel|tel aviv)\b/i],
+  ["AE", /\b(uae|dubai|united arab emirates)\b/i],
+  ["MX", /\bmexico\b/i],
+  ["BR", /\b(brazil|s[aã]o paulo)\b/i],
+  ["AR", /\bargentina\b/i],
+];
+
+function readLocationCodes(text: string) {
+  const codes = new Set(
+    locationTerms
+      .filter(([, pattern]) => pattern.test(text))
+      .map(([code]) => code)
+  );
+  // "Anywhere in the US" limits the role; a specific place wins.
+  if (codes.size > 1) codes.delete("worldwide");
+  return [...codes];
+}
+
+/**
+ * Reads how a role is worked and from where, from its location fields
+ * alone. The description often narrows it further; the model screen reads that.
+ */
 export function classifyLocation(
   location: string,
   workplaceType: string | null
-): Pick<JobScreen, "remote" | "remoteEvidence"> {
-  const text = `${location} ${workplaceType ?? ""}`.trim();
-  const remote =
-    remotePattern.test(text) || /^remote$/i.test(workplaceType ?? "");
-  const hybridOrOnsite =
-    onsitePattern.test(text) ||
-    /^(hybrid|on-?site)$/i.test(workplaceType ?? "");
-  const evidence = location.slice(0, 300);
-  if (indiaPattern.test(text)) {
-    return {
-      remote: remote && !hybridOrOnsite ? "india" : "onsite",
-      remoteEvidence: evidence,
-    };
-  }
-  if (!remote) {
-    return {
-      remote:
-        location.trim() && !/not stated/i.test(location) ? "onsite" : "unclear",
-      remoteEvidence: evidence,
-    };
-  }
-  if (anywherePattern.test(text)) {
-    return { remote: "anywhere", remoteEvidence: evidence };
-  }
-  if (apacPattern.test(text))
-    return { remote: "apac", remoteEvidence: evidence };
-  if (regionPattern.test(text)) {
-    return { remote: "other_region", remoteEvidence: evidence };
-  }
-  return { remote: "unclear", remoteEvidence: evidence };
+): Pick<JobScreen, "locationEvidence" | "regions" | "workplace"> {
+  const type = (workplaceType ?? "").toLowerCase().replaceAll(/[^a-z]/g, "");
+  const stated = location.trim() !== "" && !/not stated/i.test(location);
+  const workplace: JobScreen["workplace"] =
+    type === "remote"
+      ? "remote"
+      : type === "hybrid"
+        ? "hybrid"
+        : type === "onsite"
+          ? "onsite"
+          : remotePattern.test(location)
+            ? "remote"
+            : hybridPattern.test(location)
+              ? "hybrid"
+              : onsitePattern.test(location) || stated
+                ? "onsite"
+                : "unclear";
+  return {
+    locationEvidence: location.slice(0, 300),
+    regions: readLocationCodes(location),
+    workplace,
+  };
 }
 
 export function classifySeniority(title: string): JobScreen["seniority"] {
@@ -77,17 +137,20 @@ export function classifySeniority(title: string): JobScreen["seniority"] {
 }
 
 const roleFamilyPatterns: readonly [JobScreen["roleFamily"], RegExp][] = [
-  ["qa", /\b(qa|quality|test|tester|testing|sdet)\b/i],
+  [
+    "qa",
+    /\b(qa|quality assurance|quality engineer|test|tester|testing|sdet)\b/i,
+  ],
   ["security", /\b(security|appsec|secops|soc|penetration)\b/i],
   [
     "support",
-    /\b(support|it|helpdesk|solutions?|sales|customer|implementation|integrations? specialist|people systems)\b/i,
+    /\b(support|helpdesk|help desk|it (engineer|specialist|administrator|support|generalist)|customer (success|service|support)|solutions? (engineer|architect|consultant)|sales engineer|implementation (engineer|specialist|consultant)|integrations? specialist|people systems|hris|business systems|workday|netsuite|erp)\b/i,
   ],
   ["mobile", /\b(ios|android|mobile|react native|flutter)\b/i],
   ["ai", /\b(ai|llm|agents?|agentic|genai|generative)\b/i],
   [
     "data_ml",
-    /\b(data|machine learning|ml|mlops|research|analytics|scientist)\b/i,
+    /\b(data|machine learning|ml|mlops|research|analytics|scientist|computer vision|vision|perception|robotics|nlp)\b/i,
   ],
   [
     "infrastructure",
@@ -98,6 +161,10 @@ const roleFamilyPatterns: readonly [JobScreen["roleFamily"], RegExp][] = [
     /\b(full[- ]?stack|front[- ]?end|back[- ]?end|product|software|web|founding|developer|engineer)\b/i,
   ],
 ];
+
+/** Families a title names outright; a model read of the description doesn't override them. */
+export const titleDecidedFamilies: ReadonlySet<JobScreen["roleFamily"]> =
+  new Set(["qa", "security", "support"]);
 
 export function classifyRoleFamily(title: string): JobScreen["roleFamily"] {
   return (
@@ -154,10 +221,6 @@ const redFlagTerms: readonly [string, RegExp][] = [
     "equity-only or unpaid",
     /\b(equity[- ]only|unpaid|no salary|commission[- ]only)\b/i,
   ],
-  [
-    "recruiter posting for a client",
-    /\b(on behalf of (our|a) client|our client is|recruitment agency|staffing agency)\b/i,
-  ],
   ["unpaid trial", /\bunpaid (trial|test|assignment)\b/i],
 ];
 
@@ -167,12 +230,30 @@ function extractRedFlags(text: string) {
     .map(([name]) => name);
 }
 
+// Phrases only a recruiter hiring for someone else writes. "Not working with
+// staffing agencies" is common in employer postings, so agency names alone
+// don't count.
+const agencyPhrase =
+  /\b(on behalf of (our|a|an) client|our client(,| is| has| are)|for (a|our) client|client of ours)\b/i;
+const agencyCompany =
+  /\b(staffing|recruit(ing|ment|ers)|headhunt\w*|talent (partners|acquisition|solutions))\b/i;
+
+export function classifyEmployer(
+  company: string,
+  description: string
+): JobScreen["employerType"] {
+  return agencyCompany.test(company) || agencyPhrase.test(description)
+    ? "agency"
+    : "unclear";
+}
+
 /** The cheap, deterministic screen every posting gets. */
 export function screenWithRules(input: ScreenInput): JobScreen {
   const text = `${input.title}\n${input.description}`;
   return {
     method: "rules",
     ...classifyLocation(input.location, input.workplaceType),
+    employerType: classifyEmployer(input.company, input.description),
     minYears: extractMinYears(input.description),
     redFlags: extractRedFlags(text),
     roleFamily: classifyRoleFamily(input.title),
@@ -183,18 +264,23 @@ export function screenWithRules(input: ScreenInput): JobScreen {
 }
 
 /**
- * Whether a posting could fit someone working remotely from India and so
- * deserves a model read of the full description: location fields often say
- * "Remote" while the description limits it to one country or timezone.
- * Senior and staff titles keep the rules screen to hold model spend down.
+ * Whether a posting deserves a model read of the full description: location
+ * fields often say "Remote" while the description limits it to one country
+ * or timezone. Only remote or unstated postings that someone in one of
+ * `countries` (the countries the hub's users live in) could take get a read,
+ * and senior and staff titles keep the rules screen, to hold model spend down.
  */
-export function needsModelScreen(screen: JobScreen) {
-  return (
-    screen.seniority !== "senior" &&
-    screen.seniority !== "staff_plus" &&
-    (screen.remote === "anywhere" ||
-      screen.remote === "india" ||
-      screen.remote === "apac" ||
-      screen.remote === "unclear")
-  );
+export function needsModelScreen(
+  screen: JobScreen,
+  countries: readonly string[]
+) {
+  if (screen.seniority === "senior" || screen.seniority === "staff_plus") {
+    return false;
+  }
+  if (screen.workplace !== "remote" && screen.workplace !== "unclear") {
+    return false;
+  }
+  if (screen.regions.length === 0) return true;
+  const open = new Set(countries.flatMap(locationCodesFor));
+  return screen.regions.some((code) => open.has(code));
 }

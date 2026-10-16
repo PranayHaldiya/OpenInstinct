@@ -4,7 +4,12 @@ import {
   listCandidateJobPostings,
 } from "@db/services/jobs/postings";
 import { env } from "@shared/environment";
-import { jobScreenSchema, jobSources } from "@shared/jobs/schema";
+import {
+  jobScreenSchema,
+  jobSources,
+  type JobPreferences,
+} from "@shared/jobs/schema";
+import { locationCodesFor } from "./regions";
 
 const date = z.iso
   .datetime({ offset: true })
@@ -35,17 +40,25 @@ const hubPostingSchema = z.object({
  * Screened postings for matching. A per-user VM reads the shared hub index
  * and caches it locally; anything else reads its own database.
  */
-export async function loadCandidatePostings(input: {
-  readonly remoteScopes: readonly string[];
-  readonly since: Date;
-}) {
+export async function loadCandidatePostings(
+  preferences: JobPreferences,
+  since: Date
+) {
+  const input = {
+    includeUnclear: preferences.includeUnclearLocation,
+    regions: locationCodesFor(preferences.country),
+    since,
+    workplaces: preferences.workplaces,
+  };
   if (env.OI_HUB_URL && env.OI_HUB_TOKEN && env.OWNER_TELEGRAM_USER_ID) {
     const url = new URL(
       "eve/v1/hub/jobs",
       `${env.OI_HUB_URL.replace(/\/$/, "")}/`
     );
-    url.searchParams.set("scopes", input.remoteScopes.join(","));
-    url.searchParams.set("since", input.since.toISOString());
+    url.searchParams.set("regions", input.regions.join(","));
+    url.searchParams.set("workplaces", input.workplaces.join(","));
+    url.searchParams.set("unclear", input.includeUnclear ? "1" : "0");
+    url.searchParams.set("since", since.toISOString());
     const response = await fetch(url, {
       headers: {
         "x-oi-hub-token": env.OI_HUB_TOKEN,

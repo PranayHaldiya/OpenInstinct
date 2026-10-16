@@ -16,11 +16,13 @@ afterEach(async () => {
 });
 
 const screen: JobScreen = {
+  employerType: "unclear",
+  locationEvidence: "Remote",
   method: "rules",
   minYears: null,
   redFlags: [],
-  remote: "anywhere",
-  remoteEvidence: "Remote",
+  regions: ["worldwide"],
+  workplace: "remote",
   roleFamily: "product",
   seniority: "unknown",
   stack: [],
@@ -90,11 +92,23 @@ describe("job search services", () => {
       { provider: "ashby", slug: "acme" },
       ["acme:1"]
     );
-    const candidates = await postings.listCandidateJobPostings({
-      remoteScopes: ["anywhere"],
+    const filter = {
+      includeUnclear: false,
+      regions: ["worldwide", "IN", "asia", "apac"],
       since: new Date(Date.now() - 86_400_000),
-    });
+      workplaces: ["remote"],
+    };
+    const candidates = await postings.listCandidateJobPostings(filter);
     expect(candidates.map((row) => row.externalId)).toEqual(["acme:1"]);
+    expect(
+      await postings.listCandidateJobPostings({ ...filter, regions: ["US"] })
+    ).toEqual([]);
+    expect(
+      await postings.listCandidateJobPostings({
+        ...filter,
+        workplaces: ["onsite"],
+      })
+    ).toEqual([]);
     const [open] = candidates;
     if (!open) throw new Error("Expected an open posting.");
 

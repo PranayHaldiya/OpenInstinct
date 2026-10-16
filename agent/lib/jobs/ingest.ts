@@ -18,6 +18,7 @@ import {
   fetchYcJobs,
   type FeedResult,
 } from "./sources/feeds";
+import { env } from "@shared/environment";
 import { seedJobBoards } from "./seed-boards";
 import { screenWithModel } from "./screen/model";
 import { needsModelScreen, screenWithRules } from "./screen/rules";
@@ -132,7 +133,7 @@ export async function ingestJobs(options: IngestOptions = {}) {
     const rules = screenWithRules(posting);
     const postedAt = posting.postedAt ?? posting.firstSeenAt;
     if (
-      !needsModelScreen(rules) ||
+      !needsModelScreen(rules, env.OI_SCREEN_COUNTRIES) ||
       now.getTime() - postedAt.getTime() > modelScreenMaxAgeMs
     ) {
       await saveJobScreen(posting.id, rules);

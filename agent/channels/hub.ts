@@ -7,7 +7,7 @@ import {
 import { verifyHubToken } from "@agent/lib/hub/token";
 import { ingestJobs } from "@agent/lib/jobs/ingest";
 import { listCandidateJobPostings } from "@db/services/jobs/postings";
-import { remoteScopes } from "@shared/jobs/schema";
+import { locationCodeSchema, workplaces } from "@shared/jobs/schema";
 import { env } from "@shared/environment";
 
 const notFound = () => new Response(null, { status: 404 });
@@ -55,17 +55,24 @@ export default defineChannel({
       }
       const query = z
         .object({
-          scopes: z
+          regions: z
             .string()
             .transform((value) => value.split(","))
-            .pipe(z.array(z.enum(remoteScopes)).min(1)),
+            .pipe(z.array(locationCodeSchema).min(1).max(20)),
           since: z.iso.datetime().transform((value) => new Date(value)),
+          unclear: z.enum(["0", "1"]).transform((value) => value === "1"),
+          workplaces: z
+            .string()
+            .transform((value) => value.split(","))
+            .pipe(z.array(z.enum(workplaces)).min(1)),
         })
         .safeParse(Object.fromEntries(new URL(request.url).searchParams));
       if (!query.success) return new Response(null, { status: 400 });
       const postings = await listCandidateJobPostings({
-        remoteScopes: query.data.scopes,
+        includeUnclear: query.data.unclear,
+        regions: query.data.regions,
         since: query.data.since,
+        workplaces: query.data.workplaces,
       });
       return Response.json({ postings });
     }),

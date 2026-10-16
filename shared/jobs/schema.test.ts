@@ -19,7 +19,9 @@ describe("jobPreferencesSchema", () => {
     expect(jobPreferencesSchema.parse({})).toMatchObject({
       digestSize: 5,
       maxYears: 3,
-      remoteScopes: ["anywhere", "india", "apac"],
+      country: null,
+      excludeEmployerTypes: ["agency"],
+      workplaces: ["remote"],
     });
   });
 });

@@ -148,6 +148,13 @@
       "when": 1792085299391,
       "tag": "0020_memory_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792140218910,
+      "tag": "0021_jobs_location_facts",
+      "breakpoints": true
     }
   ]
 }

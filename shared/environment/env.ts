@@ -113,6 +113,22 @@ export const env = createEnv({
     OWNER_TELEGRAM_USER_ID: requiredValue.optional(),
     MARITIME_API_KEY: requiredValue.optional(),
     OI_USER_IMAGE: requiredValue.optional(),
+    // Hub job screening: the model that reads postings, and the countries
+    // (ISO codes, comma-separated) whose remote postings earn a model read.
+    OI_SCREEN_MODEL: requiredValue
+      .refine(
+        (value) => /^anthropic\/claude-[a-z0-9.-]+$/.test(value),
+        "OI_SCREEN_MODEL must look like anthropic/claude-haiku-5.5"
+      )
+      .optional(),
+    OI_SCREEN_COUNTRIES: z
+      .string()
+      .regex(
+        /^[A-Z]{2}(,[A-Z]{2})*$/,
+        "OI_SCREEN_COUNTRIES must be ISO codes like IN,US"
+      )
+      .default("IN")
+      .transform((value) => value.split(",")),
     LINQ_PHONE_NUMBER: requiredValue
       .refine(
         (value) => isE164PhoneNumber(value),

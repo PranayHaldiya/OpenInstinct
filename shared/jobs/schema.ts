@@ -18,16 +18,37 @@ export const jobsIngestCron = "17 */4 * * *";
 
 export const jobBoardProviders = ["ashby", "greenhouse", "lever"] as const;
 
+/** How a role is worked; where it may be worked from lives in `regions`. */
+export const workplaces = ["remote", "hybrid", "onsite", "unclear"] as const;
+
 /**
- * Who may work a role from where. `anywhere`, `india` and `apac` are the scopes
- * a candidate in India can usually take; the rest exclude them or need a read.
+ * Named regions a posting can limit work to. Alongside them, `regions` holds
+ * `worldwide` and ISO 3166-1 alpha-2 country codes such as `IN` or `US`.
  */
-export const remoteScopes = [
-  "anywhere",
-  "india",
+export const regionNames = [
+  "americas",
+  "north_america",
+  "latam",
+  "europe",
+  "emea",
+  "middle_east",
+  "africa",
   "apac",
-  "other_region",
-  "onsite",
+  "asia",
+  "oceania",
+] as const;
+
+export const locationCodeSchema = z
+  .string()
+  .regex(new RegExp(`^(?:[A-Z]{2}|worldwide|${regionNames.join("|")})$`));
+
+const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+
+/** Who is hiring: the company itself, a recruiter for a client, or a firm that builds for clients. */
+export const employerTypes = [
+  "product",
+  "agency",
+  "services",
   "unclear",
 ] as const;
 
@@ -56,8 +77,10 @@ export const roleFamilies = [
 /** The user-independent read of one posting, made once when it is ingested. */
 export const jobScreenSchema = z.strictObject({
   method: z.enum(["rules", "model"]),
-  remote: z.enum(remoteScopes),
-  remoteEvidence: z.string().max(300),
+  workplace: z.enum(workplaces),
+  regions: z.array(locationCodeSchema).max(30),
+  locationEvidence: z.string().max(300),
+  employerType: z.enum(employerTypes),
   minYears: z.number().int().min(0).max(30).nullable(),
   seniority: z.enum(seniorities),
   roleFamily: z.enum(roleFamilies),
@@ -72,10 +95,15 @@ const companyNameSchema = z.string().trim().min(1).max(120);
 
 /** What one user is looking for. Matching is per user; screening is shared. */
 export const jobPreferencesSchema = z.strictObject({
-  remoteScopes: z
-    .array(z.enum(remoteScopes))
+  /** Where the user lives; null until they say. */
+  country: countryCodeSchema.nullable().default(null),
+  workplaces: z
+    .array(z.enum(workplaces).exclude(["unclear"]))
     .min(1)
-    .default(["anywhere", "india", "apac"]),
+    .default(["remote"]),
+  /** Keep postings that don't say how or where the role is worked. */
+  includeUnclearLocation: z.boolean().default(false),
+  excludeEmployerTypes: z.array(z.enum(employerTypes)).default(["agency"]),
   maxYears: z.number().int().min(0).max(30).default(3),
   stretchYears: z.number().int().min(0).max(30).default(4),
   excludeSeniorities: z

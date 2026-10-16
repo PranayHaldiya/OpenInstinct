@@ -140,18 +140,36 @@ export async function saveJobScreen(
     .where(eq(jobPostings.id, id));
 }
 
-/** Open, screened postings first seen or posted since `since` in the scopes. */
+/**
+ * Open, screened postings first seen or posted since `since` that are worked
+ * in one of `workplaces` and list one of `regions`. With `includeUnclear`,
+ * postings that don't say how or where they are worked come too.
+ */
 export async function listCandidateJobPostings(input: {
-  readonly remoteScopes: readonly string[];
+  readonly includeUnclear: boolean;
+  readonly regions: readonly string[];
   readonly since: Date;
+  readonly workplaces: readonly string[];
 }) {
+  const regions = sql`array[${sql.join(
+    input.regions.map((code) => sql`${code}`),
+    sql`, `
+  )}]::text[]`;
+  const located = and(
+    sql`${jobPostings.screen}->>'workplace' IN ${input.workplaces}`,
+    sql`${jobPostings.screen}->'regions' ?| ${regions}`
+  );
+  const unclear = or(
+    sql`${jobPostings.screen}->>'workplace' = 'unclear'`,
+    sql`jsonb_array_length(${jobPostings.screen}->'regions') = 0`
+  );
   return db
     .select()
     .from(jobPostings)
     .where(
       and(
         isNull(jobPostings.closedAt),
-        sql`${jobPostings.screen}->>'remote' IN ${input.remoteScopes}`,
+        input.includeUnclear ? or(located, unclear) : located,
         or(
           gte(jobPostings.postedAt, input.since),
           and(
