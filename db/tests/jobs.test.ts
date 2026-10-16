@@ -112,6 +112,18 @@ describe("job search services", () => {
     const [open] = candidates;
     if (!open) throw new Error("Expected an open posting.");
 
+    // A rebuilt hub index hands out new ids; the cached row keeps its own.
+    await postings.cacheJobPostings([
+      {
+        ...open,
+        id: "00000000-0000-4000-8000-000000000001",
+        description: "Build more things",
+      },
+    ]);
+    const [recached] = await postings.listCandidateJobPostings(filter);
+    expect(recached?.id).toBe(open.id);
+    expect(recached?.description).toBe("Build more things");
+
     // Boards are added once and come due again after a fetch window.
     expect(
       await postings.addJobBoards(

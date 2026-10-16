@@ -242,8 +242,9 @@ export async function markJobBoardFetched(
 }
 
 /**
- * Stores postings read from another deployment's index under their original
- * ids, so recommendations and the application log can reference them.
+ * Stores postings read from another deployment's index. New postings keep
+ * that index's ids; ones already cached keep theirs, so recommendations and
+ * the application log keep pointing at them.
  */
 export async function cacheJobPostings(
   postings: readonly (typeof jobPostings.$inferInsert)[]
@@ -254,7 +255,10 @@ export async function cacheJobPostings(
       .insert(jobPostings)
       .values(postings.slice(start, start + upsertChunkSize))
       .onConflictDoUpdate({
-        target: jobPostings.id,
+        // Keyed by source and external id, not the hub's row id: a cached
+        // posting keeps its local id, which the user's log and
+        // recommendations point to, even if the hub's index was rebuilt.
+        target: [jobPostings.source, jobPostings.externalId],
         set: {
           applyUrl: sql`excluded.apply_url`,
           closedAt: sql`excluded.closed_at`,
