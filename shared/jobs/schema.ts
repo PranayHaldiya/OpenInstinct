@@ -82,6 +82,8 @@ export const jobScreenSchema = z.strictObject({
   method: z.enum(["rules", "model"]),
   workplace: z.enum(workplaces),
   regions: z.array(locationCodeSchema).max(30),
+  /** States or cities within those countries that a remote role is limited to. */
+  localities: z.array(z.string().max(60)).max(10).optional(),
   locationEvidence: z.string().max(300),
   employerType: z.enum(employerTypes),
   /** Languages the work needs: the posting's own plus any it requires. */

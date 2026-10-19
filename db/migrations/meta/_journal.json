@@ -169,6 +169,13 @@
       "when": 1792148698230,
       "tag": "0023_browser_image_contents",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792388769665,
+      "tag": "0024_jobs_screen_localities",
+      "breakpoints": true
     }
   ]
 }

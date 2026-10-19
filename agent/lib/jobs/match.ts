@@ -98,6 +98,11 @@ export function fitLocation(
   if (screen.regions.length === 0) {
     return preferences.includeUnclearLocation ? "unstated" : null;
   }
+  // Only some states or cities qualify, and where in the country the user
+  // lives isn't known.
+  if (screen.workplace === "remote" && screen.localities?.length) {
+    return preferences.includeUnclearLocation ? "unstated" : null;
+  }
   const { country } = preferences;
   if (country && screen.regions.includes(country)) return "country";
   // An office region or "worldwide" office says nothing about where the user is.

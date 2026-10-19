@@ -213,6 +213,15 @@ describe("fitLocation", () => {
     expect(fitLocation({ ...screen, regions: ["IN"] }, unknown)).toBeNull();
   });
 
+  it("treats a remote role limited to some states as unstated", () => {
+    const states = { ...screen, regions: ["IN"], localities: ["Kerala"] };
+    expect(fitLocation(states, india)).toBeNull();
+    expect(
+      fitLocation(states, { ...india, includeUnclearLocation: true })
+    ).toBe("unstated");
+    expect(fitLocation({ ...states, localities: [] }, india)).toBe("country");
+  });
+
   it("keeps unstated locations only when asked", () => {
     const unclear = { ...screen, regions: [], workplace: "unclear" as const };
     expect(fitLocation(unclear, india)).toBeNull();

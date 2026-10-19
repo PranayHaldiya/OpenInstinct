@@ -45,6 +45,11 @@ const modelScreenSchema = z.object({
     .describe(
       `Where the role can be worked from. For a remote role: ["worldwide"] when no country, region or timezone limit applies; otherwise the allowed places as ISO 3166-1 alpha-2 country codes (US, IN, GB, DE) or region names from: ${regionNames.join(", ")}. A required timezone overlap means the regions in that timezone (US hours: north_america). Work authorization or residency limits mean those countries. 'Worldwide' followed by a list of places means only those places. For hybrid or onsite roles: the office countries. Empty when the posting does not say.`
     ),
+  localities: z
+    .array(z.string())
+    .describe(
+      "For a remote role that only people in some states, provinces or cities of those countries may take (such as 'Kerala or Tamil Nadu candidates only' or 'must live in the Bay Area'), those places as named. Not places listed as preferred. Empty otherwise."
+    ),
   locationEvidence: z
     .string()
     .describe(
@@ -138,6 +143,10 @@ export async function screenWithModel(
       .slice(0, 10),
     workplace: output.workplace,
     regions: normalizeLocationCodes(output.regions),
+    localities: output.localities
+      .map((place) => truncate(place.trim(), 60))
+      .filter(Boolean)
+      .slice(0, 10),
     locationEvidence: truncate(
       output.locationEvidence || rules.locationEvidence,
       300
